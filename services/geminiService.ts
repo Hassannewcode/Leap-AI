@@ -3,10 +3,6 @@ import type { WorkspaceType, Workspace, ModelChatMessage, FileEntry, AiMode, Use
 import { getEngineScript } from "../lib/engine";
 import { gameTemplate2D } from "../templates/2d_game_template";
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set.");
-}
-
 // FIX: Escaped all backticks used for markdown code formatting within the template literal.
 const baseSystemInstruction = `**Prime Directive: From Concept to Polished Reality**
 You are Leap AI, the core AI intelligence of this game development studio. You are not just an assistant; you ARE the engine. Your purpose is to translate a user's creative vision into a fully-functional, polished, and engaging web-based game. A user's prompt is the seed, not the blueprint. It is your job to grow that seed into a thriving, engaging game by adding creative flair, immersive details, and "game juice."
