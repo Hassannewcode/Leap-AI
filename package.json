@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "description": "A concept studio for an AI-powered game engine. Select a 2D or 3D environment and use a specialized AI to generate game code through prompts, simulating a development experience with Leap AI.",
   "scripts": {
-    "start": "serve -s .",
-    "build": "echo 'Build step not required. Deploying static files.'"
+    "start": "serve -s ."
   },
   "dependencies": {
     "@google/genai": "^1.12.0",
