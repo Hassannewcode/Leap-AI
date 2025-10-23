@@ -13,7 +13,7 @@ function updateMousePos(event) {
 canvas.addEventListener('mousemove', updateMousePos);
 canvas.addEventListener('click', () => {
     if (isInspectMode && hoveredSprite) {
-        window.parent.postMessage({ type: 'visual-editor-select', payload: { id: hoveredSprite.id, name: hoveredSprite.name || 'Unnamed Sprite' } }, '*');
+        window.parent.postMessage({ type: 'visual-editor-select', payload: { id: hoveredSprite.id, name: hoveredSprite.name || 'Unnamed Object' } }, '*');
     }
 });
 window.addEventListener('message', (event) => {

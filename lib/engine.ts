@@ -3,6 +3,7 @@ import { WorkspaceType } from '../types';
 
 import { consoleOverride } from './utils/consoleOverride';
 import { autonomousDebugger } from './utils/debugger';
+import { safetyProtocol } from './core/safetyProtocol';
 
 import { assetManager } from './assets/AssetManager';
 import { audioManager } from './core/AudioManager';
@@ -26,7 +27,8 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
         assetManager,
         audioManager,
         inputManager,
-        sceneManager
+        sceneManager,
+        safetyProtocol
     ];
     
     if (workspaceType === '2D') {

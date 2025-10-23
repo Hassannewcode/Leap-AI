@@ -94,6 +94,11 @@
         background: black !important;
         color: #abb2bf; /* Default text color for atom-one-dark */
       }
+      /* FIX: Prevent hljs from managing horizontal scroll, so our custom container can do it. */
+      /* This ensures the horizontal scrollbar is always at the bottom of the viewport. */
+      pre code.hljs {
+        overflow-x: visible !important;
+      }
     </style>
   <script type="importmap">
 {

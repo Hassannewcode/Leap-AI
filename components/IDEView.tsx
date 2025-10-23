@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import AIIcon from './icons/AIIcon';
@@ -23,6 +25,7 @@ import DebuggerPanel from './DebuggerPanel';
 import BugIcon from './icons/BugIcon';
 import { cleanForSerialization } from '../lib/utils/serialization';
 import DebuggerWidget from './DebuggerWidget';
+import ConfirmationModal from './ConfirmationModal';
 
 
 declare global {
@@ -48,6 +51,12 @@ interface IDEViewProps {
     onCreateLocalAsset: (prompt: string) => void;
 }
 
+interface ConfirmationRequest {
+    action: 'quarantine' | 'allow';
+    incident: DebuggerIncident;
+    onConfirm: () => void;
+}
+
 const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
@@ -59,6 +68,8 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const [activePath, setActivePath] = useState('scripts/game.js');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [incidents, setIncidents] = useState<DebuggerIncident[]>([]);
+    const [quarantineRequest, setQuarantineRequest] = useState<DebuggerIncident | null>(null);
+    const [confirmationRequest, setConfirmationRequest] = useState<ConfirmationRequest | null>(null);
 
     const [isEditingName, setIsEditingName] = useState(false);
     const [workspaceName, setWorkspaceName] = useState(activeWorkspace.name);
@@ -230,13 +241,41 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         onGenerate(fixPrompt, null, 'standard');
     }, [onGenerate, isLoading]);
     
+     const handleAllowIncident = useCallback((incidentId: string) => {
+        setIncidents(prev => prev.filter(i => i.id !== incidentId));
+    }, []);
+
+    const handleQuarantineIncident = useCallback((incident: DebuggerIncident) => {
+        setQuarantineRequest(incident);
+        // Also remove it from the list after quarantine is requested
+        setTimeout(() => handleAllowIncident(incident.id), 300);
+    }, [handleAllowIncident]);
+
+    const handleRequestQuarantine = useCallback((incident: DebuggerIncident) => {
+        setConfirmationRequest({
+            action: 'quarantine',
+            incident,
+            onConfirm: () => handleQuarantineIncident(incident),
+        });
+    }, [handleQuarantineIncident]);
+
+    const handleRequestAllow = useCallback((incident: DebuggerIncident) => {
+        setConfirmationRequest({
+            action: 'allow',
+            incident,
+            onConfirm: () => handleAllowIncident(incident.id),
+        });
+    }, [handleAllowIncident]);
+    
      const handleAutoFixIncident = useCallback((incident: DebuggerIncident) => {
         if (isLoading) return;
         const cleanContext = cleanForSerialization(incident.evidence.context || {});
-        const contextString = JSON.stringify(cleanContext);
+        const contextString = JSON.stringify(cleanContext, null, 2);
         const fixPrompt = `[LEAP_AI_FIX_REQUEST] The LeapGuard Autonomous Runtime Analysis System reported the following incident. Please analyze the code and fix the root cause.\n\nThreat Level: ${incident.threatLevel}\nSuspect: ${incident.suspect}\nMessage: ${incident.message}\nEvidence: ${contextString}\nStack Trace:\n${incident.evidence.stack}`;
         onGenerate(fixPrompt, null, 'standard');
-    }, [onGenerate, isLoading]);
+        // Also remove it from the list after the fix is requested
+        setTimeout(() => handleAllowIncident(incident.id), 300);
+    }, [onGenerate, isLoading, handleAllowIncident]);
 
     useEffect(() => {
         if (codeBlockRef.current && window.hljs && activeFile) {
@@ -400,9 +439,11 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                                         <div className="w-60 bg-[#0d0d0d] border-r border-gray-800/70 h-full">
                                           <FileExplorer files={activeWorkspace.files} activePath={activeFile?.path || ''} onSelect={setActivePath} />
                                         </div>
-                                        <div className="flex-1 h-full font-mono text-sm bg-black overflow-auto">
-                                             <div className="p-4 h-full">
-                                                <pre className="h-full w-full"><code ref={codeBlockRef} className="language-html"></code></pre>
+                                        <div className="flex-1 h-full font-mono text-sm bg-black overflow-x-auto">
+                                            <div className="h-full overflow-y-auto">
+                                                <div className="p-4">
+                                                    <pre><code ref={codeBlockRef} className="language-html"></code></pre>
+                                                </div>
                                             </div>
                                         </div>
                                     </Panel>
@@ -415,6 +456,8 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                                             files={activeWorkspace.files} 
                                             isVisualEditMode={isVisualEditMode}
                                             localAssets={activeWorkspace.localAssets ?? []}
+                                            quarantineRequest={quarantineRequest}
+                                            onQuarantineComplete={() => setQuarantineRequest(null)}
                                         />
                                     </div>
                                 </Panel>
@@ -451,6 +494,8 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                                                 incidents={incidents}
                                                 onClear={handleClearIncidents}
                                                 onAutoFix={handleAutoFixIncident}
+                                                onRequestQuarantine={handleRequestQuarantine}
+                                                onRequestAllow={handleRequestAllow}
                                             />
                                         )}
                                     </div>
@@ -478,6 +523,13 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                 highestThreatLevel={incidentStats.highestThreatLevel}
                 onClick={handleWidgetClick}
             />
+
+            {confirmationRequest && (
+                <ConfirmationModal
+                    request={confirmationRequest}
+                    onCancel={() => setConfirmationRequest(null)}
+                />
+            )}
 
             {isLoading && (
                 <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur-sm border border-white/10 text-gray-200 px-4 py-2.5 rounded-full flex items-center gap-4 shadow-lg z-50 transition-opacity duration-300 animate-fade-in min-w-[320px]">

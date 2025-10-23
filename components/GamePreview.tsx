@@ -1,11 +1,13 @@
 
 import React, { useRef, useEffect } from 'react';
-import { FileEntry, LocalAsset } from '../types';
+import { FileEntry, LocalAsset, DebuggerIncident } from '../types';
 
 interface GamePreviewProps {
     files: FileEntry[];
     isVisualEditMode: boolean;
     localAssets: LocalAsset[];
+    quarantineRequest: DebuggerIncident | null;
+    onQuarantineComplete: () => void;
 }
 
 const mimeTypeMap: { [key: string]: string } = {
@@ -44,7 +46,7 @@ const dataURLtoBlob = (dataurl: string): Blob | null => {
     return new Blob([u8arr], { type: mime });
 }
 
-const GamePreview: React.FC<GamePreviewProps> = ({ files, isVisualEditMode, localAssets }) => {
+const GamePreview: React.FC<GamePreviewProps> = ({ files, isVisualEditMode, localAssets, quarantineRequest, onQuarantineComplete }) => {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
     
     useEffect(() => {
@@ -56,6 +58,16 @@ const GamePreview: React.FC<GamePreviewProps> = ({ files, isVisualEditMode, loca
             }, '*');
         }
     }, [isVisualEditMode]);
+
+    useEffect(() => {
+        if (quarantineRequest && iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({
+                type: 'quarantine-incident',
+                payload: quarantineRequest
+            }, '*');
+            onQuarantineComplete();
+        }
+    }, [quarantineRequest, onQuarantineComplete]);
 
 
     useEffect(() => {

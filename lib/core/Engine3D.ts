@@ -1,5 +1,6 @@
-
-
+// --- Leap AI 3D Game Engine (Powered by Three.js) ---
+// This script sets up the core 3D engine, camera, and renderer.
+// It exposes a simplified 'Engine' API globally for game scripts to use.
 
 export const engine3D = `
 const canvas = document.getElementById('game-canvas');
@@ -71,10 +72,10 @@ window.Engine = {
                 resetSceneState();
                 scenes[name]();
                 // FIX: Escape template literal within the string.
-                console.log(\`Scene '\\\${name}' loaded.\`);
+                console.log(\`Scene '\${name}' loaded.\`);
             } else {
                 // FIX: Escape template literal within the string.
-                console.error(\`Scene '\\\${name}' is not defined.\`);
+                console.error(\`Scene '\${name}' is not defined.\`);
             }
         }
     },
@@ -117,11 +118,11 @@ window.Engine = {
             meshes.push(mesh);
             return mesh;
         },
-        light: ({ type = 'ambient', color = 0xffffff, intensity = 1, position = [0, 10, 0] }) => {
+        light: ({ type = 'ambient', color = 0xffffff, intensity = 1, position = [0, 10, 0], skyColor, groundColor }) => {
             let light;
             switch(type) {
                 case 'hemisphere':
-                    light = new THREE.HemisphereLight(color, properties.groundColor, intensity);
+                    light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
                     break;
                 case 'directional': 
                     light = new THREE.DirectionalLight(color, intensity);
@@ -157,11 +158,7 @@ window.Engine = {
         meshes = meshes.filter(m => m !== object3D);
     },
     input: {
-        isPressed: (key) => {
-            const keyMap = { 'space': 'Space', 'arrowleft': 'ArrowLeft', 'arrowright': 'ArrowRight', 'arrowup': 'ArrowUp', 'arrowdown': 'ArrowDown', 'keyw': 'KeyW', 'keya': 'KeyA', 'keys': 'KeyS', 'keyd': 'KeyD'};
-            const mappedKey = key.toLowerCase().replace(/ /g, '');
-            return keysPressed.has(keyMap[mappedKey] || key);
-        }
+        isPressed: (key) => keysPressed.has(key)
     },
     camera: {
         follow: (meshToFollow, offset = [0, 5, 10]) => {

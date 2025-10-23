@@ -1,18 +1,28 @@
+
+
 import React, { useRef, useEffect } from 'react';
 import { DebuggerIncident } from '../types';
 import TrashIcon from './icons/TrashIcon';
-import AIIcon from './icons/AIIcon';
 import WandIcon from './icons/WandIcon';
 import ShieldIcon from './icons/ShieldIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
+import XIcon from './icons/XIcon';
+import { cleanForSerialization } from '../lib/utils/serialization';
 
 interface DebuggerPanelProps {
     incidents: DebuggerIncident[];
     onClear: () => void;
     onAutoFix: (incident: DebuggerIncident) => void;
+    onRequestQuarantine: (incident: DebuggerIncident) => void;
+    onRequestAllow: (incident: DebuggerIncident) => void;
 }
 
-const IncidentCard: React.FC<{ incident: DebuggerIncident; onAutoFix: (incident: DebuggerIncident) => void; }> = ({ incident, onAutoFix }) => {
+const IncidentCard: React.FC<{ 
+    incident: DebuggerIncident; 
+    onAutoFix: (incident: DebuggerIncident) => void;
+    onRequestQuarantine: (incident: DebuggerIncident) => void;
+    onRequestAllow: (incident: DebuggerIncident) => void;
+}> = ({ incident, onAutoFix, onRequestQuarantine, onRequestAllow }) => {
     const { threatLevel, suspect, message, evidence, timestamp } = incident;
 
     const colors = threatLevel === 'untrusted' ? {
@@ -39,42 +49,66 @@ const IncidentCard: React.FC<{ incident: DebuggerIncident; onAutoFix: (incident:
                         <p className="text-gray-300 text-sm mt-0.5">{message}</p>
                     </div>
                 </div>
-                 <button 
-                    onClick={(e) => { e.preventDefault(); onAutoFix(incident); }}
-                    className="ml-4 flex-shrink-0 bg-yellow-500/10 text-yellow-300 px-2 py-1 rounded text-xs font-semibold hover:bg-yellow-500/30 flex items-center gap-1.5 transition-all opacity-0 group-hover:opacity-100"
-                    title="Ask AI to fix the root cause of this incident"
-                >
-                    <WandIcon className="w-3.5 h-3.5" />
-                    Neutralize
-                </button>
                 <ChevronDownIcon className="w-4 h-4 text-gray-500 transition-transform group-open:rotate-180 flex-shrink-0 ml-2" />
             </summary>
-            <div className="border-t border-white/10 p-3 text-xs">
-                <div className="grid grid-cols-3 gap-x-4 gap-y-1">
-                     <div className="text-gray-500">Timestamp</div>
-                     <div className="col-span-2 text-gray-400">{new Date(timestamp).toLocaleTimeString()}</div>
-                     <div className="text-gray-500">Suspect</div>
-                     <div className="col-span-2 text-gray-400">{suspect}</div>
+            <div className="border-t border-white/10 p-3 text-xs space-y-3">
+                <div>
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-1">
+                         <div className="text-gray-500">Timestamp</div>
+                         <div className="col-span-2 text-gray-400">{new Date(timestamp).toLocaleTimeString()}</div>
+                         <div className="text-gray-500">Suspect</div>
+                         <div className="col-span-2 text-gray-400">{suspect}</div>
+                    </div>
+                    {evidence.stack && (
+                        <div className="mt-3 pt-2 border-t border-white/5">
+                            <h4 className="font-semibold text-gray-400 mb-1">Evidence: Stack Trace</h4>
+                            <pre className="whitespace-pre-wrap break-all text-gray-500 bg-black/30 p-2 rounded-md max-h-40 overflow-y-auto">{evidence.stack}</pre>
+                        </div>
+                    )}
+                     {evidence.context && Object.keys(evidence.context).length > 0 && (
+                        <div className="mt-3 pt-2 border-t border-white/5">
+                            <h4 className="font-semibold text-gray-400 mb-1">Evidence: Context</h4>
+                            <pre className="whitespace-pre-wrap break-all text-gray-500 bg-black/30 p-2 rounded-md max-h-40 overflow-y-auto">{JSON.stringify(cleanForSerialization(evidence.context), null, 2)}</pre>
+                        </div>
+                    )}
                 </div>
-                {evidence.stack && (
-                    <div className="mt-3 pt-2 border-t border-white/5">
-                        <h4 className="font-semibold text-gray-400 mb-1">Evidence: Stack Trace</h4>
-                        <pre className="whitespace-pre-wrap break-all text-gray-500 bg-black/30 p-2 rounded-md max-h-40 overflow-y-auto">{evidence.stack}</pre>
+
+                <div className="mt-2 pt-3 border-t border-white/5">
+                    <h4 className="font-semibold text-gray-400 mb-2">Response Actions</h4>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => onAutoFix(incident)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm font-semibold bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30 transition-colors"
+                            title="Ask AI to analyze and fix the root cause of this incident."
+                        >
+                            <WandIcon className="w-4 h-4" />
+                            Neutralize (AI)
+                        </button>
+                        <button 
+                            onClick={() => onRequestQuarantine(incident)}
+                            className="flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm font-medium bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-colors"
+                            title="Attempt an automated, non-AI action to contain the issue (e.g., remove faulty object)."
+                        >
+                           <ShieldIcon className="w-4 h-4" />
+                            Quarantine
+                        </button>
+                         <button 
+                            onClick={() => onRequestAllow(incident)}
+                            className="flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm font-medium bg-gray-500/20 text-gray-300 hover:bg-gray-500/30 transition-colors"
+                            title="Dismiss this incident and take no action."
+                        >
+                            <XIcon className="w-4 h-4" />
+                            Allow
+                        </button>
                     </div>
-                )}
-                 {evidence.context && Object.keys(evidence.context).length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-white/5">
-                        <h4 className="font-semibold text-gray-400 mb-1">Evidence: Context</h4>
-                        <pre className="whitespace-pre-wrap break-all text-gray-500 bg-black/30 p-2 rounded-md max-h-40 overflow-y-auto">{JSON.stringify(evidence.context, null, 2)}</pre>
-                    </div>
-                )}
+                </div>
             </div>
         </details>
     );
 };
 
 
-const DebuggerPanel: React.FC<DebuggerPanelProps> = ({ incidents, onClear, onAutoFix }) => {
+const DebuggerPanel: React.FC<DebuggerPanelProps> = ({ incidents, onClear, onAutoFix, onRequestQuarantine, onRequestAllow }) => {
     const incidentsEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -114,7 +148,13 @@ const DebuggerPanel: React.FC<DebuggerPanelProps> = ({ incidents, onClear, onAut
                     <div className="text-gray-500 italic p-2">No threats detected. LeapGuard is actively monitoring the runtime.</div>
                 ) : (
                     sortedIncidents.map((incident) => (
-                       <IncidentCard key={incident.id} incident={incident} onAutoFix={onAutoFix} />
+                       <IncidentCard 
+                           key={incident.id} 
+                           incident={incident} 
+                           onAutoFix={onAutoFix}
+                           onRequestQuarantine={onRequestQuarantine}
+                           onRequestAllow={onRequestAllow}
+                       />
                     ))
                 )}
                 <div ref={incidentsEndRef} />

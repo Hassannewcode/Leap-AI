@@ -1,3 +1,4 @@
+
 // FIX: Convert the entire file into an exported string constant to make it a module.
 export const engine2D = `
 const canvas = document.getElementById('game-canvas');
@@ -226,6 +227,13 @@ if (window.LeapGuard && window.LeapGuard.instrument) {
 // FIX: Escaped template literals to prevent them from being evaluated in the outer scope.
                        window.LeapGuard.reportIncident('trusted', 'Asset Check', \`Sprite '\${sprite.name}' has a broken image reference: \${sprite.imageUrl}\`);
                     }
+                }
+                if (Math.abs(sprite.x) > VIRTUAL_WIDTH * 5 || Math.abs(sprite.y) > VIRTUAL_HEIGHT * 5) {
+                    window.LeapGuard.reportIncident('trusted', 'Position Check', \`Sprite '\${sprite.name}' is far outside the viewport. It might be lost.\`, { id: sprite.id, x: sprite.x, y: sprite.y });
+                }
+                const velocityMagnitude = Math.sqrt((sprite.vx || 0)**2 + (sprite.vy || 0)**2);
+                if (velocityMagnitude > 2000) { // 2000 pixels/sec is very fast
+                    window.LeapGuard.reportIncident('trusted', 'Velocity Check', \`Sprite '\${sprite.name}' has a very high velocity (\${velocityMagnitude.toFixed(0)} p/s). This may be unintentional.\`, { id: sprite.id, vx: sprite.vx, vy: sprite.vy });
                 }
             }
         }

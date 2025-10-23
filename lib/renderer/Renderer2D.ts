@@ -1,3 +1,4 @@
+
 // FIX: Convert the entire file into an exported string constant to make it a module.
 export const renderer2D = `
 function gameLoop(timestamp) {
@@ -28,9 +29,54 @@ function gameLoop(timestamp) {
         }
     });
     
-    // Editor/Inspector Logic (remains for debugging)
+    // Editor/Inspector Logic
     if (isInspectMode) {
-        // ... inspector logic from before ...
+        const virtualMouseX = (mousePos.x - offsetX) / scale;
+        const virtualMouseY = (mousePos.y - offsetY) / scale;
+        
+        let foundSprite = null;
+        // Iterate backwards to select the top-most sprite
+        for (let i = sprites.length - 1; i >= 0; i--) {
+            const s = sprites[i];
+            
+            let bounds = { 
+                left: s.x - s.width / 2, 
+                right: s.x + s.width / 2, 
+                top: s.y - s.height / 2, 
+                bottom: s.y + s.height / 2 
+            };
+
+            // UI Text has different bounding box logic
+            if (s.isText && s.type === 'ui') {
+                ctx.font = \`\${s.size}px \${s.font}\`;
+                const metrics = ctx.measureText(s.text);
+                const textHeight = s.size;
+                
+                if (s.align === 'center') {
+                    bounds.left = s.x - metrics.width / 2;
+                    bounds.right = s.x + metrics.width / 2;
+                } else if (s.align === 'right') {
+                    bounds.left = s.x - metrics.width;
+                    bounds.right = s.x;
+                } else { // 'left'
+                    bounds.left = s.x;
+                    bounds.right = s.x + metrics.width;
+                }
+                bounds.top = s.y - textHeight;
+                bounds.bottom = s.y;
+            }
+
+            if (
+                virtualMouseX >= bounds.left &&
+                virtualMouseX <= bounds.right &&
+                virtualMouseY >= bounds.top &&
+                virtualMouseY <= bounds.bottom
+            ) {
+                foundSprite = s;
+                break; 
+            }
+        }
+        hoveredSprite = foundSprite;
     }
     
     // Particle Update
@@ -139,6 +185,48 @@ function gameLoop(timestamp) {
             ctx.fillText(sprite.text, sprite.x, sprite.y);
         }
     });
+
+    // Visual Editor Overlay (drawn inside virtual canvas, on top of all elements)
+    if (isInspectMode && hoveredSprite) {
+        ctx.save();
+        
+        let s = hoveredSprite;
+        let bounds = { 
+            x: s.x - s.width / 2, 
+            y: s.y - s.height / 2,
+            width: s.width,
+            height: s.height
+        };
+
+        if (s.isText && s.type === 'ui') {
+             ctx.font = \`\${s.size}px \${s.font}\`;
+             const metrics = ctx.measureText(s.text);
+             bounds.width = metrics.width;
+             bounds.height = s.size;
+             bounds.y = s.y - s.size;
+
+             if (s.align === 'center') {
+                bounds.x = s.x - metrics.width / 2;
+             } else if (s.align === 'right') {
+                bounds.x = s.x - metrics.width;
+             } else { // 'left'
+                bounds.x = s.x;
+             }
+        }
+        
+        // Transparent blue overlay
+        ctx.globalAlpha = 0.15; // 85% transparent
+        ctx.fillStyle = '#00aaff';
+        ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        
+        // Outline
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = '#00aaff';
+        ctx.lineWidth = 2 / scale; // Keep line width consistent
+        ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        
+        ctx.restore();
+    }
 
     ctx.restore(); // Restore from the main scale/translate transform
     
