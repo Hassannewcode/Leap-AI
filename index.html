@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-agpl" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Leap AI</title>
+    <script>
+      // --- LeapGuard Sentinel (Loads First) ---
+      // This script MUST be the first thing in the head to guarantee it catches all possible errors.
+      (function() {
+        if (window.LeapGuard) return; // Avoid re-initialization
+
+        const incidentQueue = [];
+        const earlyConsole = { ...console };
+        let guardInitialized = false;
+
+        const report = (incident) => {
+          if (guardInitialized) {
+            window.LeapGuard.reportIncident(incident.threatLevel, incident.suspect, incident.message, incident.evidence);
+          } else {
+            incidentQueue.push(incident);
+          }
+        };
+
+        window.LeapGuard = {
+          _incidentQueue: incidentQueue,
+          _initializeCore: (core) => {
+            // The main debugger script calls this to take over.
+            Object.assign(window.LeapGuard, core);
+            guardInitialized = true;
+            // Process any errors that were caught before the core was ready.
+            incidentQueue.forEach(report);
+            incidentQueue.length = 0; // Clear the queue
+          }
+        };
+
+        const createIncident = (threatLevel, suspect, message, context = {}) => {
+            const stack = (context.error && context.error.stack) ? context.error.stack : (new Error()).stack;
+            return {
+                threatLevel,
+                suspect,
+                message,
+                evidence: {
+                    stack,
+                    context
+                }
+            };
+        };
+
+        window.addEventListener('error', (event) => {
+          const { message, filename, lineno, colno, error } = event;
+          const suspect = `Uncaught Exception @ ${filename}:${lineno}:${colno}`;
+          const incident = createIncident('untrusted', suspect, message, { error });
+          report(incident);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+          const reason = event.reason;
+          const message = reason instanceof Error ? reason.message : String(reason);
+          const incident = createIncident('untrusted', 'Unhandled Promise Rejection', message, { error: reason });
+          report(incident);
+        });
+
+        Object.keys(earlyConsole).forEach(key => {
+            if (['log', 'warn', 'error', 'info'].includes(key)) {
+                console[key] = (...args) => {
+                    earlyConsole[key](...args);
+                    if (key === 'error') {
+                        const message = args.map(a => String(a)).join(' ');
+                        const incident = createIncident('trusted', 'console.error', message);
+                        report(incident);
+                    }
+                }
+            }
+        });
+
+      })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      .font-mono {
+        font-family: 'Roboto Mono', monospace;
+      }
+      /* Override hljs background to match our theme */
+      .hljs {
+        background: black !important;
+        color: #abb2bf; /* Default text color for atom-one-dark */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.12.0",
+    "jszip": "https://esm.sh/jszip@3.10.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-black text-gray-300">
+    <div id="root"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  </body>
+</html>
