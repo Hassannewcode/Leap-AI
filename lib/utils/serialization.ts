@@ -80,10 +80,6 @@ const _clean = (obj: any, visited: Set<any>): any => {
         // If an error occurs during property access (e.g., from a getter), handle it gracefully.
         const message = error instanceof Error ? error.message : 'Unknown error';
         return `[Serialization Error: ${message}]`;
-    } finally {
-        // Important: When cleaning is done for an object, remove it from the visited set
-        // so that if it appears again in a different, non-circular branch, it gets processed correctly.
-        visited.delete(obj);
     }
 
     return cleaned;

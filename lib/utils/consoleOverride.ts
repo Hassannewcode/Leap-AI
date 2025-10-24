@@ -1,3 +1,4 @@
+
 // FIX: Convert the entire file into a module exporting its content as a string.
 export const consoleOverride = `
 (function() {
@@ -56,7 +57,7 @@ export const consoleOverride = `
 
         if (Array.isArray(arg)) {
             if (arg.length === 0) return '[]';
-            const preview = arg.slice(0, 10).map(item => safeSerialize(item, new WeakSet(seen))).join(', ');
+            const preview = arg.slice(0, 10).map(item => safeSerialize(item, seen)).join(', ');
 // FIX: Escape nested template literal.
             return \`[\${preview}\${arg.length > 10 ? ', ...' : ''}]\`;
         }
@@ -67,7 +68,7 @@ export const consoleOverride = `
 
             const properties = keys.slice(0, 10).map(key => {
                  if (isSkippableInternal(key)) return null;
-                 const valuePreview = safeSerialize(arg[key], new WeakSet(seen));
+                 const valuePreview = safeSerialize(arg[key], seen);
 // FIX: Escape nested template literal.
                  return \`"\${key}": \${valuePreview}\`;
             }).filter(Boolean).join(', ');
