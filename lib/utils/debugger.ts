@@ -9,7 +9,7 @@ export const autonomousDebugger = `
 const leapGuardCore = {
     _incidents: new Set(),
     _config: {
-        healthCheckInterval: 500, // ms
+        healthCheckInterval: 250, // ms
     },
     _healthCheckIntervalId: null,
 

@@ -20,14 +20,14 @@ The \\\`window.Engine\\\` object is your direct interface to the game world. You
 **2. OUTPUT FORMAT: THE PROJECT MANIFEST**
 You MUST ALWAYS respond with a single, valid JSON object.
 Schema:
-\`\`\`json
+\\\`\\\`\\\`json
 {
   "thinking": "Your detailed design document, including your [VISUAL ANALYSIS] of the current game state, research summary, and implementation plan. MUST include your search queries.",
   "explanation": "A brief, friendly summary for the user about the new features and changes you've implemented.",
   "files": [ { "path": "path/to/file.ext", "content": "..." } ],
   "assetsUsed": [ { "url": "direct_url_to_asset_file.png", "source": "e.g., Kenney.nl" } ]
 }
-\`\`\`
+\\\`\\\`\\\`
 **JSON VALIDITY MANDATE:** Your entire response MUST be a single, valid JSON object. The \\\`content\\\` property for each file is a string that will be parsed. You MUST properly escape all special characters within the file content to ensure the JSON is syntactically correct. This includes, but is not limited to:
 - Double quotes (\\\`"\\\`) must be escaped as \\\`\\\\"\\\`.
 - Backslashes (\\\`\\\\\\\`) must be escaped as \\\`\\\\\\\\\\\`.
@@ -67,7 +67,7 @@ You are a massively parallel AI agent. You MUST act as if you are analyzing and 
 - **Activation:** When you need to understand the layout of a spritesheet for animations, you MUST use this tool.
 - **Process:** In your 'thinking' block, declare "Activating Asset Contexting Tool for 'asset_name.png'". Then, based on the image, create a detailed JSON file describing the frames and save it in the \\\`assets/\\\` folder.
 - **Example Output File (e.g., assets/player_walk.json):**
-  \`\`\`json
+  \\\`\\\`\\\`json
   {
     "meta": { "image": "assets/player_walk.png", "frameWidth": 32, "frameHeight": 48 },
     "frames": {
@@ -75,7 +75,7 @@ You are a massively parallel AI agent. You MUST act as if you are analyzing and 
       "walk_1": { "x": 32, "y": 0, "w": 32, "h": 48 }
     }
   }
-  \`\`\`
+  \\\`\\\`\\\`
 - **Usage:** In your game logic, load this JSON and use the coordinates to set sprite properties like \\\`clipX\\\`, \\\`clipY\\\`, etc., to create animations.
 **7c. Code Library Integration:** You MUST proactively look for opportunities to use external JavaScript libraries to create better games.
 - **Mandate:** For any non-trivial project, aim to use at least one external library (e.g., Matter.js for 2D physics, GSAP for animation, p5.js for effects).
@@ -398,9 +398,9 @@ export const sendMessageToAi = async (
 
         // --- 2. Coder Step ---
         const coderPrompt = `Current project files are:
-\`\`\`json
+\\\`\\\`\\\`json
 ${JSON.stringify(workspace.files, null, 2)}
-\`\`\`
+\\\`\\\`\\\`
 The user's original request was: "${finalPrompt}".
 
 An expert engineer has created the following plan for you. Your task is to execute this plan perfectly.

@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { FileEntry } from '../types';
 import FileIcon from './icons/FileIcon';
@@ -47,7 +46,7 @@ const buildFileTree = (files: FileEntry[]): TreeNode[] => {
                     currentNode.children.push(folderNode);
                     // FIX: The type of `folderNode` (TreeNode) is not assignable to the type of `currentNode` ({ children: TreeNode[] })
                     // because `children` is optional in `TreeNode`. We cast it to assert it's a folder-like structure.
-                    currentNode = folderNode as TreeNode & { children: TreeNode[] };
+                    currentNode = folderNode as unknown as { children: TreeNode[] };
                 }
             }
         });

@@ -1,4 +1,3 @@
-
 // FIX: Convert the entire file into an exported string constant to make it a module.
 export const engine2D = `
 const canvas = document.getElementById('game-canvas');
@@ -214,26 +213,29 @@ if (window.LeapGuard && window.LeapGuard.instrument) {
             const allSprites = Engine.getAllSprites();
             if (allSprites.length > 500) {
 // FIX: Escaped template literal to prevent it from being evaluated in the outer scope.
-                 window.LeapGuard.reportIncident('trusted', 'Performance Check', \`High object count: \${allSprites.length}. This may impact performance.\`);
+                 window.LeapGuard.reportIncident('trusted', 'Performance Check', \`High object count: \\\${allSprites.length}. This may impact performance.\`);
             }
             for (const sprite of allSprites) {
                 if (isNaN(sprite.x) || isNaN(sprite.y)) {
 // FIX: Escaped template literal to prevent it from being evaluated in the outer scope.
-                    window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', \`Sprite '\${sprite.name}' has NaN position.\`, { id: sprite.id, x: sprite.x, y: sprite.y });
+                    window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', \`Sprite '\\\${sprite.name}' has NaN position.\`, { id: sprite.id, x: sprite.x, y: sprite.y });
+                }
+                if (sprite.width <= 0 || sprite.height <= 0) {
+                    window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', \`Sprite '\\\${sprite.name}' has an invalid size (W: \\\${sprite.width}, H: \\\${sprite.height}). It may be invisible.\`, { id: sprite.id, width: sprite.width, height: sprite.height });
                 }
                 if (sprite.imageUrl && !assetCache[sprite.imageUrl]) {
                     // This can happen briefly while loading, so we add a check.
                     if (!loadingAssets.has(sprite.imageUrl)) {
 // FIX: Escaped template literals to prevent them from being evaluated in the outer scope.
-                       window.LeapGuard.reportIncident('trusted', 'Asset Check', \`Sprite '\${sprite.name}' has a broken image reference: \${sprite.imageUrl}\`);
+                       window.LeapGuard.reportIncident('trusted', 'Asset Check', \`Sprite '\\\${sprite.name}' has a broken image reference: \\\${sprite.imageUrl}\`);
                     }
                 }
                 if (Math.abs(sprite.x) > VIRTUAL_WIDTH * 5 || Math.abs(sprite.y) > VIRTUAL_HEIGHT * 5) {
-                    window.LeapGuard.reportIncident('trusted', 'Position Check', \`Sprite '\${sprite.name}' is far outside the viewport. It might be lost.\`, { id: sprite.id, x: sprite.x, y: sprite.y });
+                    window.LeapGuard.reportIncident('trusted', 'Position Check', \`Sprite '\\\${sprite.name}' is far outside the viewport. It might be lost.\`, { id: sprite.id, x: sprite.x, y: sprite.y });
                 }
                 const velocityMagnitude = Math.sqrt((sprite.vx || 0)**2 + (sprite.vy || 0)**2);
                 if (velocityMagnitude > 2000) { // 2000 pixels/sec is very fast
-                    window.LeapGuard.reportIncident('trusted', 'Velocity Check', \`Sprite '\${sprite.name}' has a very high velocity (\${velocityMagnitude.toFixed(0)} p/s). This may be unintentional.\`, { id: sprite.id, vx: sprite.vx, vy: sprite.vy });
+                    window.LeapGuard.reportIncident('trusted', 'Velocity Check', \`Sprite '\\\${sprite.name}' has a very high velocity (\\\${velocityMagnitude.toFixed(0)} p/s). This may be unintentional.\`, { id: sprite.id, vx: sprite.vx, vy: sprite.vy });
                 }
             }
         }

@@ -5,6 +5,7 @@ import GridIcon from './icons/GridIcon';
 import CubeIcon from './icons/CubeIcon';
 import AIIcon from './icons/AIIcon';
 import TrashIcon from './icons/TrashIcon';
+import { triggerHapticFeedback } from '../lib/utils/haptics';
 
 interface WorkspaceModalProps {
   workspaces: Workspace[];
@@ -43,6 +44,11 @@ const WorkspaceCard: React.FC<{workspace: Workspace, onSelect: (id: string) => v
 const WorkspaceModal: React.FC<WorkspaceModalProps> = ({ workspaces, onSelect, onCreate, onDelete }) => {
   const sortedWorkspaces = [...workspaces].sort((a, b) => b.lastModified - a.lastModified);
 
+  const handleCreate = (type: WorkspaceType) => {
+    triggerHapticFeedback();
+    onCreate(type);
+  }
+
   return (
     <div className="w-screen h-screen bg-black flex flex-col items-center justify-start p-8 text-center overflow-y-auto">
         <div className="flex items-center gap-4 mb-4 mt-8 md:mt-16">
@@ -56,14 +62,14 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({ workspaces, onSelect, o
             {/* Create New Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <button
-                    onClick={() => onCreate('2D')}
+                    onClick={() => handleCreate('2D')}
                     className="group bg-[#121212] p-8 rounded-lg border border-dashed border-gray-700 hover:border-blue-500/80 hover:bg-blue-900/10 transition-all duration-300 flex flex-col items-center justify-center"
                 >
                     <GridIcon className="w-12 h-12 mb-4 text-gray-500 group-hover:text-blue-400 transition-colors" />
                     <h2 className="text-xl font-semibold text-gray-300 group-hover:text-white">New 2D Game</h2>
                 </button>
                 <button
-                    onClick={() => onCreate('3D')}
+                    onClick={() => handleCreate('3D')}
                     className="group bg-[#121212] p-8 rounded-lg border border-dashed border-gray-700 hover:border-blue-500/80 hover:bg-blue-900/10 transition-all duration-300 flex flex-col items-center justify-center"
                 >
                     <CubeIcon className="w-12 h-12 mb-4 text-gray-500 group-hover:text-blue-400 transition-colors" />

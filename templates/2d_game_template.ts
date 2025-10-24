@@ -1,4 +1,3 @@
-
 import type { FileEntry } from '../types';
 import { getEngineScript } from '../lib/engine';
 

@@ -26,6 +26,8 @@ import BugIcon from './icons/BugIcon';
 import { cleanForSerialization } from '../lib/utils/serialization';
 import DebuggerWidget from './DebuggerWidget';
 import ConfirmationModal from './ConfirmationModal';
+import WifiIcon from './icons/WifiIcon';
+import WifiOffIcon from './icons/WifiOffIcon';
 
 
 declare global {
@@ -39,6 +41,7 @@ interface IDEViewProps {
     isLoading: boolean;
     isCreatingAsset: boolean;
     loadingMode: AiMode | null;
+    isOnline: boolean;
     onGenerate: (prompt: string, image: { data: string; mimeType: string } | null, mode: AiMode) => void;
     onPositiveFeedback: (messageId: string) => void;
     onRetry: (prompt: string) => void;
@@ -57,7 +60,7 @@ interface ConfirmationRequest {
     onConfirm: () => void;
 }
 
-const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset }) => {
+const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
     const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true);
@@ -413,6 +416,9 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                         </div>
                      </div>
                     <div className="flex items-center gap-1">
+                        <div title={isOnline ? 'Network: Online' : 'Network: Offline'} className="p-1.5">
+                            {isOnline ? <WifiIcon className="w-5 h-5 text-green-500" /> : <WifiOffIcon className="w-5 h-5 text-red-500" />}
+                        </div>
                         <button onClick={() => setIsVisualEditMode(!isVisualEditMode)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Toggle Visual Edit Mode"><MousePointerIcon className={`w-5 h-5 transition-colors ${isVisualEditMode ? 'text-blue-500' : 'text-gray-400'}`} /></button>
                         <button onClick={handleDownload} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Download Project"><DownloadIcon className="w-5 h-5" /></button>
                         <button onClick={handleRefresh} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Refresh Preview"><RefreshIcon className="w-5 h-5" /></button>

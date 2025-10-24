@@ -1,4 +1,3 @@
-
 // FIX: Convert the entire file into a module exporting its content as a string.
 export const consoleOverride = `
 (function() {
@@ -36,7 +35,7 @@ export const consoleOverride = `
 
         if (argType === 'function') {
 // FIX: Escape nested template literal.
-            return \`[Function Reference (Omitted): \${arg.name || 'anonymous'}]\`;
+            return \`[Function Reference (Omitted): \\\${arg.name || 'anonymous'}]\`;
         }
 
         // Check for DOM nodes first, as they are a primary source of cycles.
@@ -47,7 +46,7 @@ export const consoleOverride = `
                 descriptor += '.' + arg.className.split(' ').filter(Boolean).join('.');
             }
 // FIX: Escape nested template literal.
-            return \`[Quarantined DOM Element: \${descriptor}]\`;
+            return \`[Quarantined DOM Element: \\\${descriptor}]\`;
         }
         
         if (seen.has(arg)) {
@@ -59,7 +58,7 @@ export const consoleOverride = `
             if (arg.length === 0) return '[]';
             const preview = arg.slice(0, 10).map(item => safeSerialize(item, seen)).join(', ');
 // FIX: Escape nested template literal.
-            return \`[\${preview}\${arg.length > 10 ? ', ...' : ''}]\`;
+            return \`[\\\${preview}\\\${arg.length > 10 ? ', ...' : ''}]\`;
         }
         
         try {
@@ -70,11 +69,11 @@ export const consoleOverride = `
                  if (isSkippableInternal(key)) return null;
                  const valuePreview = safeSerialize(arg[key], seen);
 // FIX: Escape nested template literal.
-                 return \`"\${key}": \${valuePreview}\`;
+                 return \`"\\\${key}": \\\${valuePreview}\`;
             }).filter(Boolean).join(', ');
             
 // FIX: Escape nested template literal.
-            return \`{\${properties}\${keys.length > 10 ? ', ...' : ''}}\`;
+            return \`{\\\${properties}\\\${keys.length > 10 ? ', ...' : ''}}\`;
         } catch (e) {
              return '[Object]';
         }
@@ -114,14 +113,14 @@ export const consoleOverride = `
     // Catch uncaught exceptions
     window.addEventListener('error', (event) => {
 // FIX: Escape nested template literal.
-        const errorMessage = event.error ? (event.error.stack || event.error.message) : \`\${event.message} at \${event.filename}:\${event.lineno}\`;
+        const errorMessage = event.error ? (event.error.stack || event.error.message) : \`\\\${event.message} at \\\${event.filename}:\\\${event.lineno}\`;
         postLog('error', [errorMessage]);
     });
 
     // Catch unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
 // FIX: Escape nested template literal.
-        const errorMessage = event.reason instanceof Error ? (event.reason.stack || event.reason.message) : \`Unhandled Promise Rejection: \${String(event.reason)}\`;
+        const errorMessage = event.reason instanceof Error ? (event.reason.stack || event.reason.message) : \`Unhandled Promise Rejection: \\\${String(event.reason)}\`;
         postLog('error', [errorMessage]);
     });
 })();

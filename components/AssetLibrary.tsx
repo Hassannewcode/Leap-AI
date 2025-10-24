@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useMemo } from 'react';
 import { AssetInfo, LocalAsset, WorkspaceType } from '../types';
 import UploadCloudIcon from './icons/UploadCloudIcon';

@@ -1,4 +1,3 @@
-
 // FIX: Convert the entire file into an exported string constant to make it a module.
 export const renderer2D = `
 function gameLoop(timestamp) {
@@ -48,7 +47,7 @@ function gameLoop(timestamp) {
 
             // UI Text has different bounding box logic
             if (s.isText && s.type === 'ui') {
-                ctx.font = \`\${s.size}px \${s.font}\`;
+                ctx.font = \`\\\${s.size}px \\\${s.font}\`;
                 const metrics = ctx.measureText(s.text);
                 const textHeight = s.size;
                 
@@ -199,7 +198,7 @@ function gameLoop(timestamp) {
         };
 
         if (s.isText && s.type === 'ui') {
-             ctx.font = \`\${s.size}px \${s.font}\`;
+             ctx.font = \`\\\${s.size}px \\\${s.font}\`;
              const metrics = ctx.measureText(s.text);
              bounds.width = metrics.width;
              bounds.height = s.size;
