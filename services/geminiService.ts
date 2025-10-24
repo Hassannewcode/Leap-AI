@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI, GenerateContentResponse, Part, Modality } from "@google/genai";
 import type { WorkspaceType, Workspace, ModelChatMessage, FileEntry, AiMode, UserChatMessage, AssetInfo } from '../types';
 import { getEngineScript } from "../lib/engine";
@@ -341,7 +343,8 @@ export const sendMessageToAi = async (
     workspace: Workspace,
     prompt: string,
     image: { data: string; mimeType: string; } | null,
-    mode: AiMode
+    mode: AiMode,
+    onProgress?: (update: { stage: 'planner_start' | 'planner_end' | 'coder_start' | 'coder_end'; content?: string }) => void
 ): Promise<GenerateContentResponse> => {
     if (!process.env.API_KEY) {
         throw new Error("API Key is not configured. Cannot contact AI service.");
@@ -382,6 +385,7 @@ export const sendMessageToAi = async (
     // TEAM MODE: Multi-step creative process
     if (mode === 'team') {
         // --- 1. Planner Step ---
+        onProgress?.({ stage: 'planner_start' });
         const plannerSystemInstruction = `You are VibeCode-Planner, a world-class principal game engineer and creative director. Your role is to analyze a user's request and the current state of the codebase to produce a comprehensive, step-by-step execution plan for a junior developer AI.
 - The plan must be exceptionally detailed and clear.
 - It must specify which files to create, modify, or delete.
@@ -404,8 +408,10 @@ export const sendMessageToAi = async (
             config: { systemInstruction: plannerSystemInstruction, temperature: 0.2 }
         });
         const plan = plannerResponse.text;
+        onProgress?.({ stage: 'planner_end', content: plan });
 
         // --- 2. Coder Step ---
+        onProgress?.({ stage: 'coder_start' });
         const coderPrompt = `Current project files are:
 \\\`\\\`\\\`json
 ${JSON.stringify(workspace.files, null, 2)}
@@ -432,6 +438,7 @@ Now, follow this plan precisely. Your response must be the final JSON object con
                 temperature: 0.1,
             }
         });
+        onProgress?.({ stage: 'coder_end' });
 
         return coderResponse;
     }
