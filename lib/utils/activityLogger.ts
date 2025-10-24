@@ -22,7 +22,8 @@ const activityLog: UserActivityEvent[] = [];
  * @param element The target element.
  * @returns A CSS selector string.
  */
-const generateSelector = (element: Element | null): string => {
+// FIX: Export `generateSelector` so it can be used by other modules like the accessibility auditor.
+export const generateSelector = (element: Element | null): string => {
     if (!element || !(element instanceof Element)) return 'unknown';
 
     const path: string[] = [];

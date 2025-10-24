@@ -82,15 +82,15 @@ export interface DebuggerIncident {
     };
 }
 
-// --- New Diagnostic Types ---
+// --- New Types for Diagnostics ---
+
 export interface AccessibilityIssue {
-    severity: 'critical' | 'warning';
-    message: string;
-    element: string; // A selector for the element
+    selector: string;
+    issue: string;
+    element: string;
 }
 
 export interface MetaIssue {
-    severity: 'critical' | 'warning';
-    message: string;
     tag: string;
+    issue: string;
 }

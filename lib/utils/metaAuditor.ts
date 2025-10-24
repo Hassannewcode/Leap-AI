@@ -1,59 +1,41 @@
-// --- LeapGuard Meta & SEO Auditor ---
-// A lightweight audit for common meta tags.
 import { MetaIssue } from '../../types';
 
+const REQUIRED_TAGS = [
+    { type: 'name', value: 'description' },
+    { type: 'property', value: 'og:title' },
+    { type: 'property', value: 'og:description' },
+    { type: 'property', value: 'og:image' },
+    { type: 'property', value: 'og:type' },
+];
 
 export const runMetaAudit = (): MetaIssue[] => {
     const issues: MetaIssue[] = [];
-    if (typeof document === 'undefined' || !document.head) return issues;
+    if (typeof document === 'undefined') return issues;
 
-    const head = document.head;
+    REQUIRED_TAGS.forEach(tagInfo => {
+        const selector = `meta[${tagInfo.type}="${tagInfo.value}"]`;
+        const element = document.querySelector(selector) as HTMLMetaElement | null;
 
-    try {
-        // Check for title
-        const title = head.querySelector('title');
-        if (!title || !title.textContent?.trim()) {
+        if (!element) {
             issues.push({
-                severity: 'critical',
-                message: 'The <title> tag is missing or empty. This is essential for SEO and browser tab identification.',
-                tag: '<title>',
+                tag: tagInfo.value,
+                issue: 'Meta tag is missing'
+            });
+        } else if (!element.content || element.content.trim() === '') {
+            issues.push({
+                tag: tagInfo.value,
+                issue: 'Meta tag content is empty'
             });
         }
-        
-        // Check for meta description
-        const description = head.querySelector('meta[name="description"]');
-        if (!description || !description.getAttribute('content')?.trim()) {
-            issues.push({
-                severity: 'warning',
-                message: 'The meta description is missing or empty. This is important for search engine results.',
-                tag: '<meta name="description">',
-            });
-        }
+    });
 
-        // Check for Open Graph tags (common ones)
-        const ogTags = ['og:title', 'og:description', 'og:image'];
-        ogTags.forEach(prop => {
-            const tag = head.querySelector(`meta[property="${prop}"]`);
-            if (!tag || !tag.getAttribute('content')?.trim()) {
-                issues.push({
-                    severity: 'warning',
-                    message: `The Open Graph tag "${prop}" is missing or empty. This affects how your content appears when shared on social media.`,
-                    tag: `<meta property="${prop}">`,
-                });
-            }
+    // Check for title tag
+    const titleElement = document.querySelector('title');
+    if (!titleElement || !titleElement.textContent || titleElement.textContent.trim() === '') {
+        issues.push({
+            tag: 'title',
+            issue: '<title> tag is missing or empty'
         });
-
-        // Check for viewport
-        const viewport = head.querySelector('meta[name="viewport"]');
-        if (!viewport || !viewport.getAttribute('content')?.trim()) {
-            issues.push({
-                severity: 'critical',
-                message: 'The viewport meta tag is missing, which can cause rendering issues on mobile devices.',
-                tag: '<meta name="viewport">',
-            });
-        }
-    } catch (e) {
-        console.error("Error during meta audit:", e);
     }
 
     return issues;

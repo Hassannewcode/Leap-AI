@@ -7,6 +7,7 @@ import { PerformanceMonitor } from './lib/utils/performanceObserver';
 
 // Initialize the user activity logger as soon as the app starts
 ActivityLogger.init();
+// Initialize the performance monitor to capture CLS and INP metrics
 PerformanceMonitor.init();
 
 const rootElement = document.getElementById('root');
