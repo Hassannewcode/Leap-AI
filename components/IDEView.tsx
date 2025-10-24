@@ -32,7 +32,8 @@ import WifiOffIcon from './icons/WifiOffIcon';
 
 declare global {
     interface Window {
-        hljs: any;
+        // FIX: Made hljs optional to match the declaration in ErrorBoundary.tsx and resolve modifier conflicts.
+        hljs?: any;
     }
 }
 

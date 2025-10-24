@@ -15,6 +15,7 @@ declare global {
         init: () => void;
         getLogs: () => any[];
     };
+    hljs?: any;
   }
 }
 
@@ -36,10 +37,13 @@ import LayoutShiftsIcon from './icons/LayoutShiftsIcon';
 import InteractionTimingIcon from './icons/InteractionTimingIcon';
 import AccessibilityIcon from './icons/AccessibilityIcon';
 import OpenGraphIcon from './icons/OpenGraphIcon';
+import TargetIcon from './icons/TargetIcon';
+
 
 type LogLevel = 'INFO' | 'SUCCESS' | 'WARN' | 'ERROR' | 'AI';
 type AnalysisStatus = 'idle' | 'running' | 'cancelled' | 'failed_retryable' | 'failed_final' | 'success_fix' | 'success_revert';
 type ErrorType = 'game' | 'ide' | 'unknown';
+type ActiveRecoveryTab = 'log' | 'suspects';
 
 interface LogEntry {
     id: number;
@@ -87,6 +91,7 @@ interface State {
   suspectFile: FileEntry | null;
   analysisReport: AnalysisReport | null;
   diagnostics: DiagnosticData | null;
+  activeRecoveryTab: ActiveRecoveryTab;
 }
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -94,6 +99,7 @@ const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 class ErrorBoundary extends Component<Props, State> {
   private analysisTimer: number | undefined;
   private analysisAbortController: AbortController | null = null;
+  private suspectCodeBlockRef = React.createRef<HTMLElement>();
 
   constructor(props: Props) {
     super(props);
@@ -110,8 +116,9 @@ class ErrorBoundary extends Component<Props, State> {
       suspectFile: null,
       analysisReport: null,
       diagnostics: null,
+      activeRecoveryTab: 'suspects', // Default to the new suspects tab
     };
-    // FIX: Bind all component methods to ensure `this` context is correct.
+    // FIX: Bind all component methods to ensure `this` context is correct. This resolves multiple errors related to accessing `this.state` and `this.props` in handlers.
     this.gatherDiagnostics = this.gatherDiagnostics.bind(this);
     this.analyzeError = this.analyzeError.bind(this);
     this.addLog = this.addLog.bind(this);
@@ -121,6 +128,7 @@ class ErrorBoundary extends Component<Props, State> {
     this.handleQuickFix = this.handleQuickFix.bind(this);
     this.formatDiagnosticsForAI = this.formatDiagnosticsForAI.bind(this);
     this.runFullAnalysis = this.runFullAnalysis.bind(this);
+    this.highlightSuspectCode = this.highlightSuspectCode.bind(this);
   }
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
@@ -172,7 +180,8 @@ class ErrorBoundary extends Component<Props, State> {
         diagnostics,
         suspectFile: analysisReport.primarySuspect,
         analysisReport,
-    });
+        activeRecoveryTab: 'suspects', // Ensure suspects tab is shown on error
+    }, this.highlightSuspectCode);
 
     if (window.LeapGuard && typeof window.LeapGuard.reportIncident === 'function') {
         window.LeapGuard.reportIncident(
@@ -190,9 +199,24 @@ class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  componentDidUpdate(prevProps: Props, prevState: State) {
+    if (this.state.activeRecoveryTab === 'suspects' && prevState.activeRecoveryTab !== 'suspects') {
+        this.highlightSuspectCode();
+    }
+  }
+  
+  highlightSuspectCode() {
+    if (this.state.activeRecoveryTab === 'suspects' && this.suspectCodeBlockRef.current && this.state.suspectFile && window.hljs) {
+        const codeElement = this.suspectCodeBlockRef.current;
+        const extension = this.state.suspectFile.path.split('.').pop() || 'js';
+        const lang = { js: 'javascript', css: 'css', html: 'html', json: 'json', tsx: 'typescript' }[extension] || 'plaintext';
+        codeElement.className = `language-${lang}`;
+        codeElement.textContent = this.state.suspectFile.content;
+        window.hljs.highlightElement(codeElement);
+    }
+  }
+
   analyzeError(error: Error, errorInfo: ErrorInfo, errorType: ErrorType, diagnostics: DiagnosticData): AnalysisReport {
-    // This function can remain largely the same, but it now receives the diagnostics data
-    // to incorporate into its hypothesis. We'll simplify the user log part as it's now pre-formatted.
     const report: AnalysisReport = {
         hypothesis: "An unknown application error occurred.",
         primarySuspect: null,
@@ -200,15 +224,13 @@ class ErrorBoundary extends Component<Props, State> {
         userActivityTrail: diagnostics.userActivity,
     };
     
-    // ... existing analysis logic ...
-    // You can now add more factors based on the new diagnostics:
     if (diagnostics.layoutShifts.length > 5) {
         report.contributingFactors.push(`High number of layout shifts (${diagnostics.layoutShifts.length}) detected, suggesting potential DOM instability before the crash.`);
     }
     if (diagnostics.accessibilityIssues.length > 0) {
         report.contributingFactors.push(`Accessibility audit found ${diagnostics.accessibilityIssues.length} issues. While not the direct cause, this indicates potential structural problems in the HTML.`);
     }
-    // ... rest of the analysis function from before ...
+
      try {
         const savedStateJSON = localStorage.getItem('ai-game-studio-state-v3');
         if (!savedStateJSON) {
@@ -229,14 +251,12 @@ class ErrorBoundary extends Component<Props, State> {
         const errorStack = error.stack || '';
         const errorMessage = error.message || '';
 
-        // Factor 1: Where did the error happen?
         if (errorType === 'game') {
             report.contributingFactors.push("Error originated within the game preview (iframe). This strongly suggests an issue with the game's code, an asset, or the game engine itself.");
         } else {
             report.contributingFactors.push("Error originated in the main IDE UI. This suggests a bug in the application's React components.");
         }
         
-        // Factor 2: What was the last AI action?
         const lastModelMessage = [...ws.chatHistory].reverse().find(m => m.role === 'model') as ModelChatMessage | undefined;
         if (lastModelMessage?.assetsUsed && lastModelMessage.assetsUsed.length > 0) {
             report.contributingFactors.push(`The AI recently added ${lastModelMessage.assetsUsed.length} new asset(s). An invalid URL could be the cause.`);
@@ -245,7 +265,6 @@ class ErrorBoundary extends Component<Props, State> {
             report.contributingFactors.push(`The AI last updated these files: ${lastModelMessage.filesUpdated.join(', ')}.`);
         }
 
-        // Factor 3: Analyze the stack trace for a specific file
         const stackLines = errorStack.split('\n');
         for (const line of stackLines) {
             const match = line.match(/([a-zA-Z0-9_-]+\/[^):]+(\.tsx|\.jsx|\.js))/);
@@ -260,7 +279,6 @@ class ErrorBoundary extends Component<Props, State> {
             }
         }
         
-        // Formulate a final hypothesis
         let hypothesis = `The application crashed due to a "${error.name}". `;
         if (errorType === 'game') {
              if (report.primarySuspect) {
@@ -394,15 +412,8 @@ class ErrorBoundary extends Component<Props, State> {
   `;
   }
   
-
   async runFullAnalysis() {
-    // ... setup is the same
-    // ...
-    // --- THIS IS THE MAJOR CHANGE ---
-    // The prompt is now generated by the new formatter function
-    this.addLog('AI', 'Compiling comprehensive diagnostic report for AI...');
-    const fixPrompt = this.formatDiagnosticsForAI();
-    // ... rest of the function (calling sendMessageToAi, processing response) is the same
+    this.setState({ activeRecoveryTab: 'log' });
     this.analysisAbortController = new AbortController();
     const { signal } = this.analysisAbortController;
     
@@ -437,7 +448,8 @@ class ErrorBoundary extends Component<Props, State> {
         await sleep(1000); checkCancellation();
 
         this.addLog('AI', '--- Phase 1: AI-Powered Root Cause Analysis ---');
-        this.addLog('INFO', 'Compiling comprehensive diagnostic report for AI...');
+        this.addLog('AI', 'Compiling comprehensive diagnostic report for AI...');
+        const fixPrompt = this.formatDiagnosticsForAI();
         await sleep(500); checkCancellation();
 
         const response = await sendMessageToAi(activeWorkspace, fixPrompt, null, 'team');
@@ -482,12 +494,53 @@ class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  renderSuspectsPanel() {
+    const { suspectFile, analysisReport } = this.state;
+    return (
+        <div className="flex-grow flex flex-col gap-3 overflow-hidden">
+            <div className="flex-shrink-0 bg-black p-3 rounded-md border border-gray-700/50">
+                <h3 className="font-bold text-base text-yellow-300 mb-2">AI Hypothesis</h3>
+                <p className="text-gray-300 whitespace-pre-wrap text-sm" dangerouslySetInnerHTML={{ __html: analysisReport?.hypothesis.replace(/`([^`]+)`/g, '<code class="font-sans text-xs bg-white/10 px-1 py-0.5 rounded text-yellow-200">$1</code>') ?? 'Analysis pending...' }}></p>
+            </div>
+            {suspectFile ? (
+                <div className="flex-grow flex flex-col bg-black rounded-md overflow-hidden border border-gray-700/50">
+                    <div className="flex-shrink-0 p-2 border-b border-gray-700/50">
+                        <h3 className="text-sm font-semibold text-gray-300">Primary Suspect: <span className="font-mono text-blue-300">{suspectFile.path}</span></h3>
+                    </div>
+                    <div className="flex-grow overflow-auto font-mono text-sm">
+                        <pre className="h-full"><code ref={this.suspectCodeBlockRef}></code></pre>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex-grow bg-black rounded-md flex items-center justify-center text-gray-600">
+                    <p>No primary suspect file identified.</p>
+                </div>
+            )}
+        </div>
+    );
+  }
+
+  renderAnalysisLogPanel() {
+     const { logs } = this.state;
+     const logColorMap: Record<LogLevel, string> = { INFO: 'text-gray-400', SUCCESS: 'text-green-400', WARN: 'text-yellow-400', ERROR: 'text-red-400', AI: 'text-blue-400' };
+    return (
+         <div className="flex-grow bg-black p-3 rounded-md overflow-y-auto font-mono text-xs">
+           {logs.length === 0 && <p className="text-gray-600">Awaiting analysis...</p>}
+           {logs.map(log => (
+               <p key={log.id} className={`${logColorMap[log.level]} whitespace-pre-wrap break-words`}>
+                   <span className="text-gray-600 select-none">{log.timestamp} [{log.level}] </span>
+                   {log.message}
+               </p>
+           ))}
+        </div>
+    );
+  }
+
   public render() {
     if (this.state.hasError) {
-        const { status, isAnalyzing, logs, failureCount, elapsedTime, error, suspectFile, analysisReport, diagnostics, errorType } = this.state;
+        const { status, isAnalyzing, failureCount, elapsedTime, error, analysisReport, diagnostics, errorType, activeRecoveryTab } = this.state;
         
         const isGameError = errorType === 'game';
-        const logColorMap: Record<LogLevel, string> = { INFO: 'text-gray-400', SUCCESS: 'text-green-400', WARN: 'text-yellow-400', ERROR: 'text-red-400', AI: 'text-blue-400' };
         const maxTiming = diagnostics?.interactionTimings.reduce((max, t: any) => Math.max(max, t.duration), 0) ?? 0;
         
       return (
@@ -537,19 +590,24 @@ class ErrorBoundary extends Component<Props, State> {
                                 <div className="font-mono text-gray-400">{diagnostics?.metaIssues.length ?? 0} issues</div>
                             </div>
                         </div>
-                        <div className="flex-grow bg-black p-3 rounded-md overflow-y-auto text-xs font-mono">
-                            <h3 className="font-bold text-base text-yellow-300 mb-2">AI Hypothesis</h3>
-                            <p className="text-gray-300 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: analysisReport?.hypothesis.replace(/`([^`]+)`/g, '<code class="font-sans text-xs bg-white/10 px-1 py-0.5 rounded text-yellow-200">$1</code>') ?? 'Analysis pending...' }}></p>
-                            <div className="pt-2 mt-2 border-t border-gray-700/50">
-                                <h3 className="font-bold text-gray-400 mb-1">Raw Error</h3>
-                                <p className="text-red-400 break-words">{error?.message || 'No error message available.'}</p>
-                            </div>
+                         <div className="flex-grow bg-black p-3 rounded-md overflow-y-auto text-xs font-mono">
+                            <h3 className="font-bold text-gray-400 mb-1">Raw Error</h3>
+                            <p className="text-red-400 break-words">{error?.message || 'No error message available.'}</p>
                         </div>
                     </div>
 
                     <div className="flex-grow h-1/2 md:h-full flex flex-col bg-gray-900/50 p-4 rounded-lg border border-gray-800">
-                        <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                           <h2 className="font-semibold text-gray-200">Live Analysis Log</h2>
+                        <div className="flex-shrink-0 flex items-center justify-between mb-2">
+                           <div className="flex items-center border-b border-gray-700/80">
+                                <button onClick={() => this.setState({ activeRecoveryTab: 'suspects' })} className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${activeRecoveryTab === 'suspects' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-200'}`}>
+                                    <TargetIcon className="w-4 h-4" />
+                                    <span>Suspects</span>
+                                </button>
+                                <button onClick={() => this.setState({ activeRecoveryTab: 'log' })} className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${activeRecoveryTab === 'log' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-200'}`}>
+                                    <LogsIcon className="w-4 h-4" />
+                                    <span>Live Analysis Log</span>
+                                </button>
+                           </div>
                             <button
                                 onClick={this.runFullAnalysis}
                                 disabled={isAnalyzing || status === 'success_fix' || status === 'success_revert' || status === 'failed_final'}
@@ -559,15 +617,7 @@ class ErrorBoundary extends Component<Props, State> {
                                 {status.startsWith('failed') ? `Retry Analysis (${failureCount}/3)` : 'Run Full Analysis (AI)'}
                             </button>
                         </div>
-                        <div className="flex-grow bg-black p-3 rounded-md overflow-y-auto font-mono text-xs">
-                           {logs.length === 0 && <p className="text-gray-600">Awaiting analysis...</p>}
-                           {logs.map(log => (
-                               <p key={log.id} className={`${logColorMap[log.level]} whitespace-pre-wrap break-words`}>
-                                   <span className="text-gray-600 select-none">{log.timestamp} [{log.level}] </span>
-                                   {log.message}
-                               </p>
-                           ))}
-                        </div>
+                        {activeRecoveryTab === 'log' ? this.renderAnalysisLogPanel() : this.renderSuspectsPanel()}
                     </div>
                 </main>
 
