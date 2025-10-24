@@ -1,12 +1,12 @@
-
-
 import { GoogleGenAI, GenerateContentResponse, Part, Modality } from "@google/genai";
 import type { WorkspaceType, Workspace, ModelChatMessage, FileEntry, AiMode, UserChatMessage, AssetInfo } from '../types';
 import { getEngineScript } from "../lib/engine";
 import { gameTemplate2D } from "../templates/2d_game_template";
+import { extractJsonFromString } from '../lib/utils/json';
 
 // FIX: Escaped all backticks used for markdown code formatting within the template literal.
 // REVISED: Updated research mandate to prioritize Steam, official sources, and image searches for inspiration.
+// FIX: Added a final, non-negotiable directive to ensure the AI's raw output is only the JSON object.
 const baseSystemInstruction = `**Prime Directive: From Concept to Polished Reality**
 You are Leap AI, the core AI intelligence of this game development studio. You are not just an assistant; you ARE the engine. Your purpose is to translate a user's creative vision into a fully-functional, polished, and engaging web-based game. A user's prompt is the seed, not the blueprint. It is your job to grow that seed into a thriving, engaging game by adding creative flair, immersive details, and "game juice."
 
@@ -31,7 +31,7 @@ Schema:
   "assetsUsed": [ { "url": "direct_url_to_asset_file.png", "source": "e.g., Kenney.nl" } ]
 }
 \\\`\\\`\\\`
-**JSON VALIDITY MANDATE:** Your entire response MUST be a single, valid JSON object. The \\\`content\\\` property for each file is a string that will be parsed. You MUST properly escape all special characters within the file content to ensure the JSON is syntactically correct. This includes, but is not limited to:
+**JSON VALIDITY MANDATE:** Your entire response MUST be a single, valid JSON object. The \\\`content\\\` property for each file is a string that will be parsed. You MUST properly escape all special characters within the file content to ensure the JSON is syntactactically correct. This includes, but is not limited to:
 - Double quotes (\\\`"\\\`) must be escaped as \\\`\\\\"\\\`.
 - Backslashes (\\\`\\\\\\\`) must be escaped as \\\`\\\\\\\\\\\`.
 - Newlines must be escaped as \\\`\\\\n\\\`.
@@ -94,7 +94,19 @@ You are a massively parallel AI agent. You MUST act as if you are analyzing and 
 **7d. User-Provided Context:**
 - **Pasted Files:** If the user pastes code in their prompt, treat it as content to be added or updated in the project.
 - **Uploaded Assets:** Use assets uploaded by the user via their \\\`local://asset-name.png\\\` path.
+
+**FINAL CHECK: Your entire output MUST be a single raw JSON object. Do not include any other text, markdown, or formatting before or after the JSON.**
 `;
+
+const recoverySystemInstruction = `${baseSystemInstruction}
+**CRITICAL RECOVERY MANDATE**
+You are in RECOVERY MODE, acting as a specialized diagnostic and repair AI. A critical application error has occurred, and the user is locked out. Your analysis and fix are the only way to recover the application.
+- **Root Cause Analysis:** Meticulously analyze the provided crash report, which includes the error message, stack traces, component stack, user activity log, and performance metrics.
+- **Comprehensive Fix:** Your goal is not just to patch the error but to understand the underlying cause and implement a robust solution. Your response MUST be a valid JSON object with the "files" key containing the COMPLETE and CORRECTED code for ALL project files.
+- **Adaptive Strategy:** If the report indicates a previous automated fix for this exact error has failed, you MUST devise a completely different solution. Do not repeat the failed approach. This is a critical instruction.
+- **Final Output:** Your response MUST only be the JSON manifest. Do not include any conversational text outside of the JSON structure.
+`;
+
 
 // FIX: Escaped all backticks used for markdown code formatting within the template literal.
 const technologyInstructions = {
@@ -339,6 +351,68 @@ export const generateImageAsset = async (prompt: string): Promise<string> => {
     return finalPart.inlineData.data;
 };
 
+export const requestAiFix = async (diagnostics: any, workspace: Workspace, previousAttemptFailed: boolean): Promise<FileEntry[]> => {
+    if (!process.env.API_KEY) {
+        throw new Error("API Key is not configured.");
+    }
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Sanitize and format the diagnostics into a markdown report
+    const report = `
+## LeapGuard Crash Report
+
+**Error:** ${diagnostics.error.name}: ${diagnostics.error.message}
+**Stack Trace:**
+\`\`\`
+${diagnostics.error.stack}
+\`\`\`
+**Component Stack:**
+\`\`\`
+${diagnostics.componentStack}
+\`\`\`
+**Error Boundary Selector:** ${diagnostics.boundarySelector}
+
+---
+
+### Project Context
+**Project Type:** ${workspace.type}
+**Current Files:**
+\`\`\`json
+${JSON.stringify(workspace.files.map(f => f.path))}
+\`\`\`
+
+---
+
+### User Activity (Last ${diagnostics.userActivity.length} events)
+${diagnostics.userActivity.map((log: any) => `- [${new Date(log.timestamp).toLocaleTimeString()}] ${log.type} on \`${log.details.selector}\``).join('\n')}
+`;
+
+    let prompt = `[LEAP_AI_CRASH_REPORT]\n${report}`;
+    if (previousAttemptFailed) {
+        prompt += "\n\n**CRITICAL: A previous automated fix for this exact error failed. Do NOT attempt the same solution. You MUST analyze the problem from a new perspective and generate a fundamentally different fix.**";
+    }
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro', // Use the best model for this critical task
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+            systemInstruction: recoverySystemInstruction + technologyInstructions[workspace.type],
+            temperature: 0.1, // Be precise and deterministic
+            // FIX: Enforce a JSON response type to make the recovery process more reliable.
+            responseMimeType: "application/json",
+        }
+    });
+
+    const jsonResponse = extractJsonFromString(response.text);
+
+    if (!jsonResponse || !Array.isArray(jsonResponse.files) || jsonResponse.files.length === 0) {
+        throw new Error("AI failed to provide a valid fix in the expected JSON format.");
+    }
+    
+    return jsonResponse.files as FileEntry[];
+};
+
+
 export const sendMessageToAi = async (
     workspace: Workspace,
     prompt: string,
@@ -385,7 +459,7 @@ export const sendMessageToAi = async (
     // TEAM MODE: Multi-step creative process
     if (mode === 'team') {
         // --- 1. Planner Step ---
-        onProgress?.({ stage: 'planner_start' });
+        onProgress?.({ stage: 'planner_start', content: "Task received. Planner agent is analyzing the request..." });
         const plannerSystemInstruction = `You are VibeCode-Planner, a world-class principal game engineer and creative director. Your role is to analyze a user's request and the current state of the codebase to produce a comprehensive, step-by-step execution plan for a junior developer AI.
 - The plan must be exceptionally detailed and clear.
 - It must specify which files to create, modify, or delete.
@@ -408,10 +482,10 @@ export const sendMessageToAi = async (
             config: { systemInstruction: plannerSystemInstruction, temperature: 0.2 }
         });
         const plan = plannerResponse.text;
-        onProgress?.({ stage: 'planner_end', content: plan });
+        onProgress?.({ stage: 'planner_end', content: `Planner agent finished. Blueprint created. Handing off to Coder agent...` });
 
         // --- 2. Coder Step ---
-        onProgress?.({ stage: 'coder_start' });
+        onProgress?.({ stage: 'coder_start', content: `Coder agent online. Implementing blueprint...` });
         const coderPrompt = `Current project files are:
 \\\`\\\`\\\`json
 ${JSON.stringify(workspace.files, null, 2)}
@@ -438,7 +512,7 @@ Now, follow this plan precisely. Your response must be the final JSON object con
                 temperature: 0.1,
             }
         });
-        onProgress?.({ stage: 'coder_end' });
+        onProgress?.({ stage: 'coder_end', content: `Coder agent finished. Finalizing changes...` });
 
         return coderResponse;
     }

@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import AIIcon from './icons/AIIcon';
@@ -42,6 +44,7 @@ interface IDEViewProps {
     isLoading: boolean;
     isCreatingAsset: boolean;
     loadingMode: AiMode | null;
+    aiProgress: string[];
     isOnline: boolean;
     onGenerate: (prompt: string, image: { data: string; mimeType: string } | null, mode: AiMode) => void;
     onPositiveFeedback: (messageId: string) => void;
@@ -61,7 +64,7 @@ interface ConfirmationRequest {
     onConfirm: () => void;
 }
 
-const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset }) => {
+const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, aiProgress, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
     const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true);
@@ -97,68 +100,16 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
 
     // --- Loading Indicator State ---
     const [elapsedTime, setElapsedTime] = useState(0);
-    const [loadingMessage, setLoadingMessage] = useState("AI is thinking...");
-    const loadingMessages = useMemo(() => {
-        // Create a list of plausible files to show the AI is "working" on them.
-        const plausibleFiles = activeWorkspace.files.map(f => f.path).filter(p => /\.(js|html|css)$/.test(p));
-        if (plausibleFiles.length === 0) plausibleFiles.push('scripts/game.js');
-
-        const baseMessages = [
-            `Analyzing request...`,
-            `Consulting game design principles...`,
-            `Searching for assets...`,
-            `Drafting changes...`,
-            `Polishing mechanics...`
-        ];
-
-        // Interleave file-specific messages with base messages
-        const dynamicMessages = baseMessages.flatMap((msg, i) => {
-            const fileMsg = `Refactoring \`${plausibleFiles[i % plausibleFiles.length]}\`...`;
-            return [msg, fileMsg];
-        });
-
-        if (loadingMode === 'team') {
-            return [
-                "Planner AI is analyzing the request...",
-                "Creative Director is drafting a blueprint...",
-                `Lead Engineer is reviewing \`${plausibleFiles[0]}\`...`,
-                "Planner is defining tasks for the Coder...",
-                "Coder AI is implementing the plan...",
-                `Writing new logic in \`${plausibleFiles.slice(-1)[0]}\`...`,
-                "Finalizing code and polishing features..."
-            ];
-        }
-        return dynamicMessages;
-    }, [loadingMode, activeWorkspace.files]);
-
     useEffect(() => {
-        let timer: number | undefined;
-        let messageInterval: number | undefined;
-
+        let timer: number;
         if (isLoading) {
             setElapsedTime(0);
-            setLoadingMessage("AI is thinking...");
-
             timer = window.setInterval(() => {
                 setElapsedTime(prev => prev + 1);
             }, 1000);
-
-            let msgIndex = 0;
-            const initialTimeout = setTimeout(() => {
-                setLoadingMessage(loadingMessages[msgIndex]);
-                messageInterval = window.setInterval(() => {
-                    msgIndex = (msgIndex + 1) % loadingMessages.length;
-                    setLoadingMessage(loadingMessages[msgIndex]);
-                }, 3000); // Slower interval for readability
-            }, 1500);
-
-            return () => {
-                clearTimeout(initialTimeout);
-                clearInterval(timer);
-                clearInterval(messageInterval);
-            };
         }
-    }, [isLoading, loadingMessages]);
+        return () => clearInterval(timer);
+    }, [isLoading]);
     // --- End Loading Indicator Logic ---
 
     const activeFile = useMemo(() => {
@@ -539,10 +490,12 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             )}
 
             {isLoading && (
-                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur-sm border border-white/10 text-gray-200 px-4 py-2.5 rounded-full flex items-center gap-4 shadow-lg z-50 transition-opacity duration-300 animate-fade-in min-w-[320px]">
+                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur-sm border border-white/10 text-gray-200 px-4 py-2.5 rounded-full flex items-center gap-4 shadow-lg z-50 transition-opacity duration-300 animate-fade-in min-w-[320px] max-w-xl">
                     <SpinnerIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                    <div className="text-left">
-                        <p className="text-sm font-medium" dangerouslySetInnerHTML={{ __html: loadingMessage.replace(/`([^`]+)`/g, '<code class="font-mono text-xs bg-white/10 px-1 py-0.5 rounded">$1</code>') }}></p>
+                    <div className="text-left overflow-hidden">
+                        <p className="text-sm font-medium truncate">
+                             {aiProgress.length > 0 ? aiProgress[aiProgress.length - 1] : "AI is thinking..."}
+                        </p>
                         <p className="text-xs text-gray-400 font-mono tracking-tighter">Elapsed: {elapsedTime}s</p>
                     </div>
                 </div>

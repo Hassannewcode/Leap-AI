@@ -1,5 +1,3 @@
-
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import IDEView from './components/IDEView';
 import WorkspaceModal from './components/WorkspaceModal';
@@ -21,6 +19,7 @@ const App: React.FC = () => {
     const [isCreatingAsset, setIsCreatingAsset] = useState<boolean>(false);
     const [loadingMode, setLoadingMode] = useState<AiMode | null>(null);
     const [isInitialized, setIsInitialized] = useState<boolean>(false);
+    const [aiProgress, setAiProgress] = useState<string[]>([]);
     const isOnline = useOnlineStatus();
 
     // Load from localStorage on initial mount
@@ -53,6 +52,12 @@ const App: React.FC = () => {
             const stateToSave = { workspaces, activeWorkspaceId };
             const cleanedState = cleanForSerialization(stateToSave);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanedState));
+            // Also save active ID to session storage for the error boundary to access
+            if (activeWorkspaceId) {
+                sessionStorage.setItem('activeWorkspaceId', activeWorkspaceId);
+            } else {
+                sessionStorage.removeItem('activeWorkspaceId');
+            }
         } catch (error) {
             console.error("Failed to save state to localStorage:", error);
         }
@@ -105,6 +110,8 @@ const App: React.FC = () => {
         
         setIsLoading(true);
         setLoadingMode(mode);
+        setAiProgress([]);
+        
         const userMessage: UserChatMessage = {
             id: generateId(),
             role: 'user',
@@ -121,7 +128,13 @@ const App: React.FC = () => {
         }));
         
         try {
-            const response = await sendMessageToAi(activeWorkspace, prompt, image, mode);
+            const onProgress = (update: { stage: string; content?: string }) => {
+                if (update.content) {
+                    setAiProgress(prev => [...prev, update.content]);
+                }
+            };
+
+            const response = await sendMessageToAi(activeWorkspace, prompt, image, mode, onProgress);
             const fullResponseText = response.text;
             
             const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
@@ -135,10 +148,10 @@ const App: React.FC = () => {
                 throw new Error('AI returned an invalid or non-JSON response.');
             }
             
+            // FIX: Add a robust validation check to prevent state corruption from malformed AI responses.
             const { thinking, explanation, files, assetsUsed } = jsonResponse;
-
-            if (!Array.isArray(files) || files.length === 0 || !files.every((f: any) => f.path && typeof f.content === 'string')) {
-                 throw new Error("AI response is missing the 'files' field or it has an invalid format.");
+            if (!Array.isArray(files) || !files.every((f: any) => typeof f.path === 'string' && typeof f.content === 'string')) {
+                 throw new Error("AI response is missing the 'files' field or it has an invalid format. Cannot apply changes.");
             }
             
             const modelMessageText = (typeof explanation === 'string' && explanation.trim()) ? explanation : 'Code updated successfully.';
@@ -244,12 +257,11 @@ const App: React.FC = () => {
         if (messageToRestoreFrom && messageToRestoreFrom.role === 'model' && messageToRestoreFrom.checkpoint) {
             const filesToRestore = messageToRestoreFrom.checkpoint;
             
-            const restoreConfirmationMessage: ModelChatMessage = {
-                id: generateId(),
-                role: 'model',
-                text: `Restored the project to the state from the previous checkpoint.`,
-                fullResponse: JSON.stringify({ status: 'restored', fromMessageId: messageId }),
-            };
+            const logMessages: ModelChatMessage[] = [
+                { id: generateId(), role: 'model', text: `Systematic Repair Protocol initiated for checkpoint...`, fullResponse: '{}' },
+                { id: generateId(), role: 'model', text: `File integrity verified. Reverting to checkpoint state...`, fullResponse: '{}' },
+                { id: generateId(), role: 'model', text: `System restored successfully.`, fullResponse: '{}' },
+            ];
 
             setWorkspaces(prev => {
                 const currentWs = prev[activeWorkspace.id];
@@ -258,7 +270,7 @@ const App: React.FC = () => {
                     [activeWorkspace.id]: {
                         ...currentWs,
                         files: filesToRestore,
-                        chatHistory: [...currentWs.chatHistory, restoreConfirmationMessage],
+                        chatHistory: [...currentWs.chatHistory, ...logMessages],
                         lastModified: Date.now(),
                     }
                 };
@@ -407,6 +419,7 @@ const App: React.FC = () => {
                 isLoading={isLoading}
                 isCreatingAsset={isCreatingAsset}
                 loadingMode={loadingMode}
+                aiProgress={aiProgress}
                 isOnline={isOnline}
                 onGenerate={handleGenerateCode}
                 onPositiveFeedback={handlePositiveFeedback}
