@@ -153,12 +153,23 @@ window.Engine = {
     },
     input: {
         isPressed: (key) => keysPressed.has(key),
-        isKeyJustPressed: (key) => keysJustPressed.has(key)
+        isKeyJustPressed: (key) => keysJustPressed.has(key),
+        isMousePressed: () => isMousePressed,
+        isMouseJustClicked: () => isMouseJustClickedFlag,
+        getMousePos: () => ({ x: (mousePosition.x - offsetX) / scale, y: (mousePosition.y - offsetY) / scale }),
+        getMouseWorldPos: () => {
+            const V_SIZE = Engine.getVirtualSize();
+            const mouse = Engine.input.getMousePos();
+            const worldX = ( mouse.x - V_SIZE.width / 2 ) / camera.zoom + camera.x + V_SIZE.width / 2;
+            const worldY = ( mouse.y - V_SIZE.height / 2 ) / camera.zoom + camera.y + V_SIZE.height / 2;
+            return { x: worldX, y: worldY };
+        },
     },
     physics: {
        checkCollision: physics.checkCollision,
        checkCircularCollision: physics.checkCircularCollision,
        getCollisions: physics.getCollisions,
+       createGridFromSprites: physics.createGridFromSprites,
     },
     camera: {
         get x() { return camera.x; },
@@ -198,6 +209,7 @@ window.Engine = {
                 size: config.size || 16,
                 font: config.font || 'sans-serif',
                 align: config.align || 'left',
+                ...config, // Allow passing x, y directly
             });
         }
     },
@@ -206,6 +218,7 @@ window.Engine = {
     },
     events: eventBus,
     tween: tweenManager,
+    ai: inGameAI,
 };
 
 // --- LeapGuard Instrumentation ---

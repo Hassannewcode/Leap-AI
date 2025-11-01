@@ -84,6 +84,30 @@ export interface DebuggerIncident {
     };
 }
 
+// FIX: Add missing type definitions for DiagnosticData and UserActivityEvent to resolve compilation errors in ErrorBoundary.tsx.
+export interface UserActivityEvent {
+    type: 'click' | 'keydown';
+    timestamp: number;
+    details: {
+        selector?: string;
+        position?: { x: number; y: number };
+        key?: string;
+        code?: string;
+        text?: string;
+    };
+}
+
+export interface DiagnosticData {
+    error: any;
+    userActivity: UserActivityEvent[];
+    layoutShifts: any[];
+    interactionTimings: any[];
+    accessibilityIssues: AccessibilityIssue[];
+    metaIssues: MetaIssue[];
+    componentStack: string;
+    boundarySelector: string;
+}
+
 // --- New Types for Diagnostics ---
 
 export interface AccessibilityIssue {

@@ -1,3 +1,4 @@
+
 export const renderer3D = `
 function animate() {
     const deltaTime = clock.getDelta();
@@ -39,6 +40,9 @@ function animate() {
     }
 
     renderer.render(scene, camera);
+
+    // Clear the "just pressed" keys at the end of the frame
+    clearJustPressed();
 }
 renderer.setAnimationLoop(animate);
 `;

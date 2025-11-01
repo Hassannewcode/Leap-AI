@@ -1,4 +1,3 @@
-
 import { WorkspaceType } from '../types';
 
 import { consoleOverride } from './utils/consoleOverride';
@@ -10,6 +9,9 @@ import { audioManager } from './core/AudioManager';
 import { inputManager } from './core/InputManager';
 import { sceneManager } from './core/SceneManager';
 import { eventBus } from './core/eventBus';
+import { inGameAI } from './ai/AI';
+import { aStar } from './ai/AStar';
+import { patrolMonitor } from './patrol/PatrolMonitor';
 
 import { visualEditor2D, visualEditor3D } from './editor/VisualEditor';
 import { physics2D } from './physics/Physics2D';
@@ -34,7 +36,10 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
         safetyProtocol,
         eventBus,
         tweenManager,
-        stateMachine
+        stateMachine,
+        aStar,
+        inGameAI,
+        patrolMonitor,
     ];
     
     if (workspaceType === '2D') {

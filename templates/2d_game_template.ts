@@ -14,6 +14,13 @@ export const gameTemplate2D = (): FileEntry[] => {
 </head>
 <body>
     <canvas id="game-canvas"></canvas>
+    
+    <!-- Audio Assets -->
+    <audio id="offline-sound-shoot" src="assets/shoot.mp3" preload="auto"></audio>
+    <audio id="offline-sound-explosion" src="assets/explosion.mp3" preload="auto"></audio>
+    <audio id="offline-sound-gameOver" src="assets/gameOver.mp3" preload="auto"></audio>
+    <audio id="offline-sound-music" src="assets/music.mp3" preload="auto" loop></audio>
+
     <script id="engine-script">
 // --- Leap AI Engine ---
 ${engineScript}
@@ -50,7 +57,7 @@ Engine.setScalingStrategy('fit');
 
 // --- Scene Definitions ---
 
-// Define the start scene
+// Define the start scene (main menu)
 Engine.scene.define('start', {
     onEnter: () => {
         // Create title text with an initial alpha of 0 (invisible)
@@ -64,7 +71,7 @@ Engine.scene.define('start', {
         
         Engine.ui.drawText({
             target: titleText,
-            text: \`CUBE DODGER\`,
+            text: \`CUBE SHOOTER\`,
             size: 80,
             color: '#ffdd00',
             font: 'sans-serif',
@@ -84,7 +91,7 @@ Engine.scene.define('start', {
         
         Engine.ui.drawText({
             target: startPrompt,
-            text: \`Press SPACE to Begin\\nUse WASD or Arrows to Move\`,
+            text: \`Press SPACE to Begin\\nUse WASD or Arrows to Move\\nUse SPACE to Shoot\`,
             size: 36,
             color: 'white',
             font: 'monospace',
@@ -110,6 +117,13 @@ Engine.scene.define('main', {
         Engine.setData('obstacleSpawnRate', 1.2); 
         Engine.setData('timeSinceLastObstacle', 0);
 
+        // Start background music
+        const music = document.getElementById('offline-sound-music');
+        if (music) {
+            music.currentTime = 0;
+            music.play().catch(e => console.warn("Music playback failed. User may need to interact with the page first.", e));
+        }
+
         // Create the player character as a white cube
         const player = Engine.create.sprite({
             name: 'player',
@@ -127,22 +141,32 @@ Engine.scene.define('main', {
         const scoreText = Engine.create.sprite({ name: 'scoreText', type: 'ui', x: 20, y: 40 });
         Engine.setData('scoreText', scoreText);
 
-        // Create a game over text element (initially empty)
-        const gameOverText = Engine.create.sprite({ name: 'gameOverText', type: 'ui', x: V_SIZE.width / 2, y: V_SIZE.height / 2 });
+        // Create a game over text element (initially empty and invisible)
+        const gameOverText = Engine.create.sprite({ name: 'gameOverText', type: 'ui', x: V_SIZE.width / 2, y: V_SIZE.height / 2, alpha: 0 });
         Engine.setData('gameOverText', gameOverText);
     },
 
     onUpdate: (deltaTime) => {
+        const isGameOver = Engine.getData('gameOver');
+        let player = Engine.getData('player');
+
         // --- Handle Game Over State ---
-        if (Engine.getData('gameOver')) {
-            Engine.ui.drawText({
-                target: Engine.getData('gameOverText'),
-                text: \`GAME OVER\\nFinal Score: \${Engine.getData('score')}\\n\\nPress R to Restart\`,
-                size: 60,
-                color: 'red',
-                font: 'monospace',
-                align: 'center'
-            });
+        if (isGameOver) {
+            // Fade in the game over text
+            const textSprite = Engine.getData('gameOverText');
+            if (textSprite && textSprite.alpha < 1) {
+                textSprite.alpha += deltaTime * 0.5;
+            }
+            if(textSprite) {
+                Engine.ui.drawText({
+                    target: textSprite,
+                    text: \`GAME OVER\\nFinal Score: \${Engine.getData('score')}\\n\\nPress R to Restart\`,
+                    size: 60,
+                    color: 'red',
+                    font: 'monospace',
+                    align: 'center'
+                });
+            }
             
             if (Engine.input.isKeyJustPressed('KeyR')) {
                 Engine.scene.load('main'); // Restart the scene
@@ -150,7 +174,6 @@ Engine.scene.define('main', {
             return; // Stop the rest of the game logic
         }
 
-        const player = Engine.getData('player');
         if (!player) return;
 
         // --- Player Controls ---
@@ -172,6 +195,7 @@ Engine.scene.define('main', {
 
         // --- Shooting ---
         if (Engine.input.isKeyJustPressed('Space')) {
+            Engine.audio.play('shoot');
             Engine.create.sprite({
                 name: 'bullet',
                 x: player.x,
@@ -208,9 +232,12 @@ Engine.scene.define('main', {
         const obstacles = allSprites.filter(s => s.name === 'obstacle');
 
         // Bullets vs Obstacles
-        bullets.forEach(bullet => {
-            obstacles.forEach(obstacle => {
+        for (const bullet of bullets) {
+            // Get current obstacles on each iteration to avoid checking against destroyed ones
+            const currentObstacles = Engine.getAllSprites().filter(s => s.name === 'obstacle');
+            for (const obstacle of currentObstacles) {
                 if (Engine.physics.checkCollision(bullet, obstacle)) {
+                    Engine.audio.play('explosion');
                     Engine.create.particles({ x: obstacle.x, y: obstacle.y, count: 25, color: '#A9A9A9', life: 0.8, size: 4, gravity: 200 });
                     Engine.camera.shake(10, 0.15);
                     
@@ -222,32 +249,53 @@ Engine.scene.define('main', {
                     // Make game harder over time
                     Engine.setData('obstacleSpeed', Engine.getData('obstacleSpeed') + 5); 
                     Engine.setData('obstacleSpawnRate', Math.max(0.2, Engine.getData('obstacleSpawnRate') * 0.985));
+                    
+                    break; 
                 }
-            });
+            }
+             // Remove bullets that go off-screen
+            if (bullet.y < -50) {
+                 bullet.destroy();
+            }
+        }
+        
+        // Player vs Obstacles (check against current obstacles)
+        const currentObstacles = Engine.getAllSprites().filter(s => s.name === 'obstacle');
+        for (const obstacle of currentObstacles) {
+            // Refetch player in case it was destroyed in a previous loop iteration (unlikely but safe)
+            player = Engine.getData('player');
+            if (!player) break;
 
-            if (bullet.y < -50) bullet.destroy();
-        });
-
-        // Player vs Obstacles
-        obstacles.forEach(obstacle => {
             if (Engine.physics.checkCollision(player, obstacle)) {
+                const music = document.getElementById('offline-sound-music');
+                if (music) music.pause();
+                Engine.audio.play('gameOver');
+
                 Engine.create.particles({ x: player.x, y: player.y, count: 80, color: '#ff0000', life: 1.5, size: 5, gravity: 100 });
                 Engine.camera.shake(30, 0.7);
                 player.destroy();
                 obstacle.destroy();
+                Engine.setData('player', null); // Clear reference
                 Engine.setData('gameOver', true);
+                break; 
             }
-            if (obstacle.y > V_SIZE.height + 50) obstacle.destroy();
-        });
+             // Remove obstacles that go off-screen
+            if (obstacle.y > V_SIZE.height + 50) {
+                obstacle.destroy();
+            }
+        }
         
         // --- Update UI ---
-        Engine.ui.drawText({
-            target: Engine.getData('scoreText'),
-            text: \`Score: \${Engine.getData('score')}\`,
-            size: 36,
-            color: '#aaffaa',
-            font: 'monospace'
-        });
+        const scoreText = Engine.getData('scoreText');
+        if (scoreText) {
+             Engine.ui.drawText({
+                target: scoreText,
+                text: \`Score: \${Engine.getData('score')}\`,
+                size: 36,
+                color: '#aaffaa',
+                font: 'monospace'
+            });
+        }
     }
 });
 
@@ -259,6 +307,10 @@ Engine.scene.load('start');
         { path: 'index.html', content: indexHtml },
         { path: 'scripts/game.js', content: gameJs.trim() },
         { path: 'style.css', content: styleCss.trim() },
-        { path: 'notes.txt', content: 'This is a 2D top-down game built with the custom Leap Engine. You can modify the game by editing scripts/game.js or by giving me prompts in the chat.' },
+        { path: 'assets/shoot.mp3', content: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b24f6057a.mp3?filename=laser-gun-shot-31835.mp3' },
+        { path: 'assets/explosion.mp3', content: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_16cc3b601f.mp3?filename=explosion-6055.mp3' },
+        { path: 'assets/gameOver.mp3', content: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c370e72c84.mp3?filename=videogame-death-sound-43894.mp3' },
+        { path: 'assets/music.mp3', content: 'https://cdn.pixabay.com/download/audio/2022/10/26/audio_95931a57d7.mp3?filename=arcade-game-background-music-8-bit-8-bit-music-123249.mp3' },
+        { path: 'notes.txt', content: 'This is a basic 2D top-down shooter template built with the Leap Engine. You can modify the game by editing scripts/game.js or by giving me prompts in the chat.' },
     ];
 };

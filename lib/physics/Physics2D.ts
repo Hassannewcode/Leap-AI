@@ -1,3 +1,4 @@
+
 export const physics2D = `
 const physics = {
     // AABB collision check (now assumes center-based coordinates)
@@ -28,6 +29,29 @@ const physics = {
     getCollisions: (sprite, useCircular = false) => {
         const checkFunc = useCircular ? physics.checkCircularCollision : physics.checkCollision;
         return sprites.filter(other => sprite !== other && checkFunc(sprite, other));
+    },
+    // Creates a 2D grid for pathfinding based on sprite positions
+    createGridFromSprites: (obstacleSprites, gridSize) => {
+        const V_SIZE = Engine.getVirtualSize();
+        const cols = Math.ceil(V_SIZE.width / gridSize);
+        const rows = Math.ceil(V_SIZE.height / gridSize);
+        const grid = Array(rows).fill(null).map(() => Array(cols).fill(0));
+
+        for (const sprite of obstacleSprites) {
+            const startCol = Math.floor((sprite.x - sprite.width / 2) / gridSize);
+            const endCol = Math.ceil((sprite.x + sprite.width / 2) / gridSize);
+            const startRow = Math.floor((sprite.y - sprite.height / 2) / gridSize);
+            const endRow = Math.ceil((sprite.y + sprite.height / 2) / gridSize);
+
+            for (let r = startRow; r < endRow; r++) {
+                for (let c = startCol; c < endCol; c++) {
+                    if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                        grid[r][c] = 1; // Mark as unwalkable
+                    }
+                }
+            }
+        }
+        return grid;
     }
 };
 `;

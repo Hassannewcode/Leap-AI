@@ -150,7 +150,8 @@ window.Engine = {
         meshes = meshes.filter(m => m !== object3D);
     },
     input: {
-        isPressed: (key) => keysPressed.has(key)
+        isPressed: (key) => keysPressed.has(key),
+        isKeyJustPressed: (key) => keysJustPressed.has(key),
     },
     camera: {
         follow: (meshToFollow, offset = [0, 5, 10]) => {
@@ -178,6 +179,7 @@ window.Engine = {
     },
     events: eventBus,
     tween: tweenManager,
+    ai: inGameAI,
 };
 
 camera.position.z = 10;
@@ -191,7 +193,7 @@ if (window.LeapGuard && window.LeapGuard.instrument) {
         healthCheck: () => {
             if (meshes.length > 300) {
 // FIX: Escaped template literal to prevent it from being evaluated in the outer scope.
-                 window.LeapGuard.reportIncident('trusted', 'Performance Check', \`High object count: \\\${meshes.length}. This may impact performance.\`);
+                 window.LeapGuard.reportIncident('trusted', 'Performance Check', \`High object count: \${meshes.length}. This may impact performance.\`);
             }
             for (const mesh of meshes) {
                 if (isNaN(mesh.position.x) || isNaN(mesh.position.y) || isNaN(mesh.position.z)) {

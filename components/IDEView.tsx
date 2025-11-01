@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import AIIcon from './icons/AIIcon';
@@ -28,12 +29,13 @@ import WifiIcon from './icons/WifiIcon';
 import WifiOffIcon from './icons/WifiOffIcon';
 import UndoIcon from './icons/UndoIcon';
 import RedoIcon from './icons/RedoIcon';
+import ApiKeyModal from './ApiKeyModal';
+import { generateInGameText } from '../services/geminiService';
 
 
 declare global {
     interface Window {
-        // FIX: Made hljs optional to match the declaration in ErrorBoundary.tsx and resolve modifier conflicts.
-        hljs?: any;
+        CodeMirror: any;
     }
 }
 
@@ -66,6 +68,11 @@ interface ConfirmationRequest {
     onConfirm: () => void;
 }
 
+interface PendingAiRequest {
+    requestId: string;
+    prompt: string;
+}
+
 const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, aiProgress, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset, onUndo, onRedo, canUndo, canRedo }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
@@ -73,7 +80,10 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const [activeBottomTab, setActiveBottomTab] = useState<'console' | 'debugger'>('console');
     const [refreshKey, setRefreshKey] = useState(0);
     const previewContainerRef = useRef<HTMLDivElement>(null);
-    const codeBlockRef = useRef<HTMLElement>(null);
+    
+    const editorContainerRef = useRef<HTMLDivElement>(null);
+    const editorRef = useRef<any>(null); // To hold the CodeMirror instance
+
     const [activePath, setActivePath] = useState('scripts/game.js');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [incidents, setIncidents] = useState<DebuggerIncident[]>([]);
@@ -88,6 +98,11 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const [selectedObject, setSelectedObject] = useState<SelectedObject>(null);
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
     
+    // --- In-Game AI State ---
+    const [userApiKey, setUserApiKey] = useState<string | null>(localStorage.getItem('user-gemini-api-key'));
+    const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+    const [pendingAiRequest, setPendingAiRequest] = useState<PendingAiRequest | null>(null);
+
     const errorCount = useMemo(() => logs.filter(log => log.type === 'error').length, [logs]);
     const incidentStats = useMemo(() => {
         const count = incidents.length;
@@ -170,28 +185,34 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                         }
                         setActiveBottomTab('debugger');
                     }
+                    break;
+                case 'ai-generate-text':
+                    if (payload && payload.prompt && payload.requestId) {
+                         handleInGameAiRequest(payload.prompt, payload.requestId);
+                    }
+                    break;
             }
         };
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [isBottomPanelVisible]);
+    }, [isBottomPanelVisible, userApiKey]); // Rerun if userApiKey changes
 
     // Keyboard shortcuts for undo/redo
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
-            const isEditingText = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+            const isEditingText = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable || target.classList.contains('CodeMirror-code');
 
             if (e.ctrlKey || e.metaKey) { // Handle Ctrl or Cmd key
-                if (e.key.toLowerCase() === 'z') {
+                if (e.key.toLowerCase() === 'z' && !isEditingText) {
                     e.preventDefault();
                     if (e.shiftKey) { // Redo for Ctrl+Shift+Z
                         if (canRedo) onRedo();
                     } else { // Undo for Ctrl+Z
                         if (canUndo) onUndo();
                     }
-                } else if (e.key.toLowerCase() === 'y') { // Standard redo
+                } else if (e.key.toLowerCase() === 'y' && !isEditingText) { // Standard redo
                     e.preventDefault();
                     if (canRedo) onRedo();
                 } else if (e.key.toLowerCase() === 'x' && !isEditingText) { // Custom redo on Ctrl+X, only when not editing text
@@ -206,6 +227,72 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [canUndo, canRedo, onUndo, onRedo]);
+
+    // --- CodeMirror Setup ---
+    useEffect(() => {
+        if (editorContainerRef.current && !editorRef.current) {
+            const editor = window.CodeMirror(editorContainerRef.current, {
+                value: activeFile?.content || '',
+                lineNumbers: true,
+                theme: 'darcula',
+                mode: 'javascript', // Default mode
+                lineWrapping: true,
+                autoCloseBrackets: true,
+                matchBrackets: true,
+                styleActiveLine: true,
+                extraKeys: {
+                    "Ctrl-/": "toggleComment",
+                    "Cmd-/": "toggleComment",
+                },
+            });
+            editorRef.current = editor;
+
+            editor.on('change', (instance: any) => {
+                const currentValue = instance.getValue();
+                if (currentValue !== activeFile?.content) {
+                    onUpdateFileContent(activeFile!.path, currentValue);
+                }
+            });
+        }
+        
+        return () => {
+            if (editorRef.current && typeof editorRef.current.toTextArea === 'function') {
+                // This is CodeMirror's internal cleanup method
+                editorRef.current.toTextArea();
+                editorRef.current = null;
+            }
+        };
+    }, []); // Initialize only once
+
+    // Effect to update editor content & mode when the active file changes
+    useEffect(() => {
+        if (editorRef.current && activeFile) {
+            const editor = editorRef.current;
+            const currentVal = editor.getValue();
+            
+            // Set language mode based on file extension
+            const extension = activeFile.path.split('.').pop() || 'txt';
+            // FIX: Corrected the type for the CodeMirror mode map to allow for 'typescript' and optional 'jsx' properties.
+            const modeMap: { [key: string]: string | { name: string; jsx?: boolean; typescript?: boolean; } } = {
+                js: 'javascript',
+                jsx: { name: "javascript", jsx: true },
+                ts: { name: "javascript", typescript: true },
+                tsx: { name: "javascript", typescript: true, jsx: true },
+                json: 'application/json',
+                html: 'htmlmixed',
+                css: 'css',
+                svg: 'xml',
+            };
+            const newMode = modeMap[extension] || 'text/plain';
+            editor.setOption('mode', newMode);
+            
+            // Only set value if it's different to prevent cursor jumps and change event loops
+            if (currentVal !== activeFile.content) {
+                editor.setValue(activeFile.content || '');
+            }
+        }
+    }, [activeFile]);
+    // --- End CodeMirror Setup ---
 
     const handleClearConsole = useCallback(() => {
         setLogs([]);
@@ -264,17 +351,48 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         setTimeout(() => handleAllowIncident(incident.id), 300);
     }, [onGenerate, isLoading, handleAllowIncident]);
 
-    useEffect(() => {
-        if (codeBlockRef.current && window.hljs && activeFile) {
-            // Set language class for syntax highlighting
-            const extension = activeFile.path.split('.').pop() || 'html';
-            const lang = { js: 'javascript', css: 'css', html: 'html', json: 'json', md: 'markdown', svg: 'xml' }[extension] || 'plaintext';
-            codeBlockRef.current.className = `language-${lang}`;
-            codeBlockRef.current.textContent = activeFile.content || '';
-            window.hljs.highlightElement(codeBlockRef.current);
+    const sendToIframe = useCallback((type: string, payload: any) => {
+        const iframe = previewContainerRef.current?.querySelector('iframe');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type, payload }, '*');
         }
-    }, [activeFile]);
+    }, []);
+
+    const handleInGameAiRequest = useCallback(async (prompt: string, requestId: string) => {
+        if (!userApiKey) {
+            setPendingAiRequest({ prompt, requestId });
+            setIsApiKeyModalOpen(true);
+            return;
+        }
+
+        try {
+            const result = await generateInGameText(prompt, userApiKey);
+            sendToIframe('ai-text-response', { requestId, success: true, text: result });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            console.error("In-game AI generation failed:", error);
+            sendToIframe('ai-text-response', { requestId, success: false, error: errorMessage });
+        }
+    }, [userApiKey, sendToIframe]);
+
+    const handleSaveApiKey = (key: string) => {
+        setUserApiKey(key);
+        localStorage.setItem('user-gemini-api-key', key);
+        setIsApiKeyModalOpen(false);
+        if (pendingAiRequest) {
+            handleInGameAiRequest(pendingAiRequest.prompt, pendingAiRequest.requestId);
+            setPendingAiRequest(null);
+        }
+    };
     
+    const handleCancelApiKey = () => {
+        if (pendingAiRequest) {
+            sendToIframe('ai-text-response', { requestId: pendingAiRequest.requestId, success: false, error: "API key entry was cancelled." });
+            setPendingAiRequest(null);
+        }
+        setIsApiKeyModalOpen(false);
+    };
+
     useEffect(() => {
         if (isEditingName && nameInputRef.current) {
             nameInputRef.current.focus();
@@ -432,12 +550,8 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                                         <div className="w-60 bg-[#0d0d0d] border-r border-gray-800/70 h-full">
                                           <FileExplorer files={activeWorkspace.files} activePath={activeFile?.path || ''} onSelect={setActivePath} />
                                         </div>
-                                        <div className="flex-1 h-full font-mono text-sm bg-black overflow-x-auto">
-                                            <div className="h-full overflow-y-auto">
-                                                <div className="p-4">
-                                                    <pre><code ref={codeBlockRef} className="language-html"></code></pre>
-                                                </div>
-                                            </div>
+                                        <div ref={editorContainerRef} className="flex-1 h-full overflow-hidden bg-[#2b2b2b]">
+                                            {/* CodeMirror will attach here */}
                                         </div>
                                     </Panel>
                                 )}
@@ -498,6 +612,13 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                     </ResizablePanelGroup>
                 </main>
             </div>
+
+            {isApiKeyModalOpen && (
+                <ApiKeyModal 
+                    onSave={handleSaveApiKey}
+                    onCancel={handleCancelApiKey}
+                />
+            )}
 
             {isAssetLibraryOpen && (
                 <AssetLibrary

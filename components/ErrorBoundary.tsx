@@ -1,12 +1,13 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AccessibilityIssue, MetaIssue, FileEntry } from '../types';
+import { AccessibilityIssue, MetaIssue, FileEntry, DiagnosticData } from '../types';
 import { ActivityLogger } from '../lib/utils/activityLogger';
 import { PerformanceMonitor } from '../lib/utils/performanceObserver';
 import { runAccessibilityAudit } from '../lib/utils/accessibilityAuditor';
 import { runMetaAudit } from '../lib/utils/metaAuditor';
 import { generateSelector } from '../lib/utils/activityLogger';
 import { requestAiFix } from '../services/geminiService';
+import { cleanForSerialization } from '../lib/utils/serialization';
 
 // Icons
 import WrenchIcon from './icons/WrenchIcon';
@@ -27,17 +28,6 @@ declare global {
             getLogs: () => any[];
         };
     }
-}
-
-interface DiagnosticData {
-    error: Error;
-    userActivity: any[];
-    layoutShifts: PerformanceEntry[];
-    interactionTimings: PerformanceEntry[];
-    accessibilityIssues: AccessibilityIssue[];
-    metaIssues: MetaIssue[];
-    componentStack: string;
-    boundarySelector: string;
 }
 
 interface Props {
@@ -69,21 +59,25 @@ class ErrorBoundary extends Component<Props, State> {
         return { hasError: true };
     }
 
-    // FIX: Converted to an arrow function property to ensure `this` is always correctly bound without manual binding.
     componentDidCatch = (error: Error, errorInfo: ErrorInfo) => {
         console.error("LeapGuard captured an unhandled error:", error, errorInfo);
         
-        const diagnostics = this.gatherDiagnostics(error, errorInfo);
+        const rawDiagnostics = this.gatherDiagnostics(error, errorInfo);
+
+        // CRITICAL FIX: Sanitize the diagnostics object BEFORE setting state.
+        // Raw error objects can contain circular references (e.g., via React Fibers attached to DOM nodes)
+        // which cause a fatal crash when developer tools or other processes try to serialize the state.
+        const diagnostics = cleanForSerialization(rawDiagnostics);
+
         const signature = this.createCrashSignature(error, errorInfo);
         const isQuarantined = sessionStorage.getItem(BEDROCK_DUMP_KEY) === signature;
         
         this.setState({
-            diagnostics,
+            diagnostics: diagnostics as DiagnosticData, // Use the cleaned, safe object
             fixAttemptFailed: isQuarantined,
         });
     }
 
-    // FIX: Converted to an arrow function property to ensure correct `this` binding.
     gatherDiagnostics = (error: Error, errorInfo: ErrorInfo): DiagnosticData => {
         return {
             error,
@@ -97,7 +91,6 @@ class ErrorBoundary extends Component<Props, State> {
         };
     }
     
-    // FIX: Converted to an arrow function property. Does not use `this`, but kept consistent for style.
     createCrashSignature = (error: Error, errorInfo: ErrorInfo): string => {
         const stack = error.stack || '';
         const componentStack = errorInfo.componentStack || '';
@@ -108,14 +101,12 @@ class ErrorBoundary extends Component<Props, State> {
         return signature.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 0).toString(16);
     }
     
-    // FIX: Converted to an arrow function property to ensure correct `this` binding.
     addRecoveryLog = (message: string) => {
         this.setState(prevState => ({
             recoveryLogs: [...prevState.recoveryLogs, message]
         }));
     }
 
-    // FIX: Converted to an arrow function property to ensure correct `this` binding without needing `.bind()` in the constructor.
     handleRunAnalysis = async () => {
         if (!this.state.diagnostics) return;
 
@@ -155,7 +146,7 @@ class ErrorBoundary extends Component<Props, State> {
 
             localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
             
-            const signature = this.createCrashSignature(this.state.diagnostics.error, { componentStack: this.state.diagnostics.componentStack });
+            const signature = this.createCrashSignature(this.state.diagnostics.error as unknown as Error, { componentStack: this.state.diagnostics.componentStack });
             sessionStorage.setItem(BEDROCK_DUMP_KEY, signature);
 
             this.addRecoveryLog("Patch applied successfully. Re-initializing application...");
@@ -169,7 +160,6 @@ class ErrorBoundary extends Component<Props, State> {
         }
     }
     
-    // FIX: Converted to an arrow function property to ensure correct `this` binding without needing `.bind()` in the constructor.
     handleSystematicRepair = () => {
         this.setState({ isRecovering: true, recoveryLogs: [] });
         const steps = [
@@ -195,7 +185,6 @@ class ErrorBoundary extends Component<Props, State> {
         }, 700);
     }
 
-    // FIX: Converted to an arrow function property to ensure correct `this` binding.
     renderRecoveryConsole = () => {
         const { diagnostics, isRecovering, recoveryLogs, fixAttemptFailed } = this.state;
         if (!diagnostics) return null;
@@ -255,6 +244,8 @@ class ErrorBoundary extends Component<Props, State> {
 
     render() {
         if (this.state.hasError) {
+            // After cleaning, diagnostics.error is a plain object, not an Error instance.
+            const errorDisplay = this.state.diagnostics?.error as unknown as { name?: string; message?: string } || {};
             return (
                 <div ref={this.ref} className="w-screen h-screen bg-black text-gray-300 flex items-center justify-center p-4 font-sans">
                     <div className="w-full max-w-2xl bg-[#121212] rounded-xl border border-red-500/30 shadow-2xl flex flex-col items-center text-center p-8 overflow-y-auto">
@@ -268,7 +259,7 @@ class ErrorBoundary extends Component<Props, State> {
                         
                         <div className="font-mono text-sm bg-black/40 p-3 rounded-md mt-6 text-left w-full border border-gray-800">
                            <p className="text-red-400 break-words">
-                                <strong>{this.state.diagnostics?.error.name}:</strong> {this.state.diagnostics?.error.message}
+                                <strong>{errorDisplay.name}:</strong> {errorDisplay.message}
                            </p>
                         </div>
 
