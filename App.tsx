@@ -21,6 +21,7 @@ interface JSZipObject {
 const generateId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 const STORAGE_KEY = 'ai-game-studio-state-v3'; // Incremented version for new data structure
+const UNDO_STACK_LIMIT = 50;
 
 const App: React.FC = () => {
     const [workspaces, setWorkspaces] = useState<Record<string, Workspace>>({});
@@ -95,6 +96,8 @@ const App: React.FC = () => {
                 chatHistory: initialHistory,
                 localAssets: [],
                 lastModified: Date.now(),
+                undoStack: [],
+                redoStack: [],
             };
             
             setWorkspaces(prev => ({ ...prev, [newId]: newWorkspace }));
@@ -189,6 +192,11 @@ const App: React.FC = () => {
                 const currentWs = prev[activeWorkspace.id];
                 // Replace the history that had the user message with the one that also includes the model's response.
                 const finalHistory = [...currentWs.chatHistory, modelMessage];
+
+                const newUndoStack = [...(currentWs.undoStack || [])];
+                newUndoStack.push(filesBeforeUpdate);
+                if (newUndoStack.length > UNDO_STACK_LIMIT) newUndoStack.shift();
+
                 return {
                     ...prev,
                     [activeWorkspace.id]: {
@@ -196,6 +204,8 @@ const App: React.FC = () => {
                         files: files as FileEntry[],
                         chatHistory: finalHistory,
                         lastModified: Date.now(),
+                        undoStack: newUndoStack,
+                        redoStack: [], // Clear redo stack on new action
                     }
                 };
             });
@@ -281,6 +291,11 @@ const App: React.FC = () => {
 
             setWorkspaces(prev => {
                 const currentWs = prev[activeWorkspace.id];
+
+                const newUndoStack = [...(currentWs.undoStack || [])];
+                newUndoStack.push(currentWs.files);
+                if (newUndoStack.length > UNDO_STACK_LIMIT) newUndoStack.shift();
+
                 return {
                     ...prev,
                     [activeWorkspace.id]: {
@@ -288,6 +303,8 @@ const App: React.FC = () => {
                         files: filesToRestore,
                         chatHistory: [...currentWs.chatHistory, ...logMessages],
                         lastModified: Date.now(),
+                        undoStack: newUndoStack,
+                        redoStack: [], // Clear redo stack on new action
                     }
                 };
             });
@@ -330,18 +347,84 @@ const App: React.FC = () => {
     }, []);
     
     const handleUpdateFileContent = useCallback((path: string, content: string) => {
-        if (!activeWorkspace) return;
+        if (!activeWorkspaceId) return;
         
-        const newFiles = activeWorkspace.files.map(file => 
-            file.path === path ? { ...file, content } : file
-        );
+        setWorkspaces(prev => {
+            const currentWs = prev[activeWorkspaceId];
+            if (!currentWs) return prev;
 
-        setWorkspaces(prev => ({
-            ...prev,
-            [activeWorkspace.id]: { ...prev[activeWorkspace.id], files: newFiles, lastModified: Date.now() }
-        }));
+            const newUndoStack = [...(currentWs.undoStack || [])];
+            newUndoStack.push(currentWs.files);
+            if (newUndoStack.length > UNDO_STACK_LIMIT) newUndoStack.shift();
+            
+            const newFiles = currentWs.files.map(file => 
+                file.path === path ? { ...file, content } : file
+            );
 
-    }, [activeWorkspace]);
+            return {
+                ...prev,
+                [activeWorkspaceId]: { 
+                    ...currentWs, 
+                    files: newFiles, 
+                    lastModified: Date.now(),
+                    undoStack: newUndoStack,
+                    redoStack: [], // Clear redo stack on new action
+                }
+            };
+        });
+    }, [activeWorkspaceId]);
+
+    const handleUndo = useCallback(() => {
+        if (!activeWorkspaceId) return;
+        setWorkspaces(prev => {
+            const currentWs = prev[activeWorkspaceId];
+            const undoStack = currentWs.undoStack || [];
+            if (undoStack.length === 0) return prev;
+
+            const newUndoStack = [...undoStack];
+            const filesToRestore = newUndoStack.pop()!;
+
+            const newRedoStack = [...(currentWs.redoStack || [])];
+            newRedoStack.push(currentWs.files);
+
+            return {
+                ...prev,
+                [activeWorkspaceId]: {
+                    ...currentWs,
+                    files: filesToRestore,
+                    lastModified: Date.now(),
+                    undoStack: newUndoStack,
+                    redoStack: newRedoStack,
+                }
+            };
+        });
+    }, [activeWorkspaceId]);
+
+    const handleRedo = useCallback(() => {
+        if (!activeWorkspaceId) return;
+        setWorkspaces(prev => {
+            const currentWs = prev[activeWorkspaceId];
+            const redoStack = currentWs.redoStack || [];
+            if (redoStack.length === 0) return prev;
+
+            const newRedoStack = [...redoStack];
+            const filesToRestore = newRedoStack.pop()!;
+
+            const newUndoStack = [...(currentWs.undoStack || [])];
+            newUndoStack.push(currentWs.files);
+
+            return {
+                ...prev,
+                [activeWorkspaceId]: {
+                    ...currentWs,
+                    files: filesToRestore,
+                    lastModified: Date.now(),
+                    undoStack: newUndoStack,
+                    redoStack: newRedoStack,
+                }
+            };
+        });
+    }, [activeWorkspaceId]);
     
     const handleUploadLocalAsset = useCallback(async (file: File) => {
         if (!activeWorkspace) return;
@@ -491,6 +574,8 @@ const App: React.FC = () => {
                 ],
                 localAssets: [],
                 lastModified: Date.now(),
+                undoStack: [],
+                redoStack: [],
             };
 
             setWorkspaces(prev => ({ ...prev, [newId]: newWorkspace }));
@@ -508,6 +593,9 @@ const App: React.FC = () => {
     const handleReturnToLauncher = useCallback(() => {
         setActiveWorkspaceId(null);
     }, []);
+
+    const canUndo = activeWorkspace ? (activeWorkspace.undoStack || []).length > 0 : false;
+    const canRedo = activeWorkspace ? (activeWorkspace.redoStack || []).length > 0 : false;
     
     if (!isInitialized || appStatusMessage) {
         return (
@@ -557,6 +645,10 @@ const App: React.FC = () => {
                 onUpdateFileContent={handleUpdateFileContent}
                 onUploadLocalAsset={handleUploadLocalAsset}
                 onCreateLocalAsset={handleCreateLocalAsset}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={canUndo}
+                canRedo={canRedo}
             />
             {workspaceMarkedForDeletion && (
                 <DeleteWorkspaceModal

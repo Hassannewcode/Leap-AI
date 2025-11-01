@@ -58,6 +58,8 @@ export interface Workspace {
     chatHistory: ChatMessage[];
     localAssets: LocalAsset[];
     lastModified: number;
+    undoStack?: FileEntry[][];
+    redoStack?: FileEntry[][];
 }
 
 export interface LogEntry {

@@ -42,7 +42,6 @@ window.addEventListener('resize', resizeCanvas);
 
 let sprites = [];
 let particles = [];
-let onUpdateCallback = (deltaTime) => {};
 let lastTime = 0;
 const state = new Map();
 
@@ -63,10 +62,11 @@ const background = {
     scrollSpeedY: 0,
 };
 
-resetSceneState = function() {
+// This function is called by the scene manager to bootstrap a new scene.
+const engineResetSceneState = function() {
     sprites = [];
     particles = [];
-    onUpdateCallback = () => {};
+    // onUpdateCallback is no longer needed. The scene manager handles this.
     camera.x = 0;
     camera.y = 0;
     camera.zoom = 1;
@@ -74,6 +74,9 @@ resetSceneState = function() {
     camera.shakeIntensity = 0;
     camera.shakeDuration = 0;
 }
+
+// The engine provides its reset logic to the central scene manager.
+sceneManager.registerResetFunction(engineResetSceneState);
 
 window.Engine = {
     getCanvas: () => canvas,
@@ -87,24 +90,12 @@ window.Engine = {
         }
     },
     getAllSprites: () => sprites,
-    onUpdate: (callback) => { onUpdateCallback = callback; },
+    onUpdate: () => console.warn("Engine.onUpdate is deprecated. Define an 'onUpdate' method in your scene configuration instead."),
     setData: (key, value) => state.set(key, value),
     getData: (key) => state.get(key),
     scene: {
-        define: (name, setupFunc) => {
-            scenes[name] = setupFunc;
-        },
-        load: (name) => {
-            if (scenes[name]) {
-                resetSceneState();
-                scenes[name]();
-                // FIX: Escape template literal within the string.
-                console.log(\`Scene '\\\${name}' loaded.\`);
-            } else {
-                // FIX: Escape template literal within the string.
-                console.error(\`Scene '\\\${name}' is not defined.\`);
-            }
-        }
+        define: (name, config) => sceneManager.define(name, config),
+        load: (name, params) => sceneManager.load(name, params),
     },
     create: {
         sprite: (config) => {
@@ -220,7 +211,6 @@ window.Engine = {
 // --- LeapGuard Instrumentation ---
 if (window.LeapGuard && window.LeapGuard.instrument) {
     Engine.create.sprite = window.LeapGuard.instrument('Engine.create.sprite', Engine.create.sprite);
-    Engine.onUpdate = window.LeapGuard.instrument('Engine.onUpdate', Engine.onUpdate);
     Engine.scene.load = window.LeapGuard.instrument('Engine.scene.load', Engine.scene.load);
     window.LeapGuard.init({
         healthCheck: () => {

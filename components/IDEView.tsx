@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import AIIcon from './icons/AIIcon';
@@ -30,6 +26,8 @@ import DebuggerWidget from './DebuggerWidget';
 import ConfirmationModal from './ConfirmationModal';
 import WifiIcon from './icons/WifiIcon';
 import WifiOffIcon from './icons/WifiOffIcon';
+import UndoIcon from './icons/UndoIcon';
+import RedoIcon from './icons/RedoIcon';
 
 
 declare global {
@@ -56,6 +54,10 @@ interface IDEViewProps {
     onUpdateFileContent: (path: string, content: string) => void;
     onUploadLocalAsset: (file: File) => void;
     onCreateLocalAsset: (prompt: string) => void;
+    onUndo: () => void;
+    onRedo: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
 }
 
 interface ConfirmationRequest {
@@ -64,7 +66,7 @@ interface ConfirmationRequest {
     onConfirm: () => void;
 }
 
-const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, aiProgress, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset }) => {
+const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, aiProgress, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset, onUndo, onRedo, canUndo, canRedo }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
     const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true);
@@ -174,6 +176,36 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
     }, [isBottomPanelVisible]);
+
+    // Keyboard shortcuts for undo/redo
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const isEditingText = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+            if (e.ctrlKey || e.metaKey) { // Handle Ctrl or Cmd key
+                if (e.key.toLowerCase() === 'z') {
+                    e.preventDefault();
+                    if (e.shiftKey) { // Redo for Ctrl+Shift+Z
+                        if (canRedo) onRedo();
+                    } else { // Undo for Ctrl+Z
+                        if (canUndo) onUndo();
+                    }
+                } else if (e.key.toLowerCase() === 'y') { // Standard redo
+                    e.preventDefault();
+                    if (canRedo) onRedo();
+                } else if (e.key.toLowerCase() === 'x' && !isEditingText) { // Custom redo on Ctrl+X, only when not editing text
+                    e.preventDefault();
+                    if (canRedo) onRedo();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [canUndo, canRedo, onUndo, onRedo]);
 
     const handleClearConsole = useCallback(() => {
         setLogs([]);
@@ -354,6 +386,9 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                         <button onClick={() => setChatVisible(!isChatVisible)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label={isChatVisible ? 'Hide Chat' : 'Show Chat'}><AIIcon className={`w-5 h-5 transition-colors ${isChatVisible ? 'text-blue-500' : 'text-gray-400'}`} /></button>
                         <button onClick={() => setCodePanelVisible(!isCodePanelVisible)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label={isCodePanelVisible ? 'Hide Code Panel' : 'Show Code Panel'}><PanelLeftIcon className={`w-5 h-5 transition-colors ${isCodePanelVisible ? 'text-blue-500' : 'text-gray-400'}`} /></button>
                         <button onClick={() => setIsAssetLibraryOpen(true)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Open Asset Library"><ImagesIcon className="w-5 h-5" /></button>
+                        <div className="h-5 w-px bg-gray-800 mx-1"></div>
+                        <button onClick={onUndo} disabled={!canUndo} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10 disabled:text-gray-600 disabled:hover:bg-transparent disabled:cursor-not-allowed" aria-label="Undo" title="Undo (Ctrl+Z)"><UndoIcon className="w-5 h-5" /></button>
+                        <button onClick={onRedo} disabled={!canRedo} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10 disabled:text-gray-600 disabled:hover:bg-transparent disabled:cursor-not-allowed" aria-label="Redo" title="Redo (Ctrl+Y / Ctrl+X)"><RedoIcon className="w-5 h-5" /></button>
                         <div className="h-5 w-px bg-gray-800 mx-1"></div>
                         <div className="flex items-center gap-3">
                              {isEditingName ? (

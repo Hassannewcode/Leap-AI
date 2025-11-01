@@ -99,8 +99,8 @@ function gameLoop(timestamp) {
         p.life -= deltaTime;
     });
     
-    // User-defined game logic
-    onUpdateCallback(deltaTime);
+    // User-defined game logic is now handled by the active scene
+    sceneManager.update(deltaTime);
 
     // --- DRAWING ---
     // Clear the entire physical canvas to create letterbox bars

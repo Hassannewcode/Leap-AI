@@ -26,7 +26,6 @@ window.addEventListener('resize', resizeAll);
 resizeAll();
 
 let meshes = [];
-let onUpdateCallback = (deltaTime) => {};
 
 function cleanupObject3D(object3D) {
     if (!object3D) return;
@@ -44,40 +43,32 @@ function cleanupObject3D(object3D) {
     }
 }
 
-resetSceneState = function() {
+// This function is called by the scene manager to bootstrap a new scene.
+const engineResetSceneState = function() {
     while(scene.children.length > 0){ 
         const obj = scene.children[0];
         cleanupObject3D(obj);
         scene.remove(obj);
     }
     meshes = [];
-    onUpdateCallback = () => {};
     cameraTarget = null;
     scene.background = new THREE.Color(0x111111);
-}
+};
+
+// The engine provides its reset logic to the central scene manager.
+sceneManager.registerResetFunction(engineResetSceneState);
+
 
 window.Engine = {
     THREE, 
     getScene: () => scene,
     getCamera: () => camera,
-    onUpdate: (callback) => { onUpdateCallback = callback; },
+    onUpdate: () => console.warn("Engine.onUpdate is deprecated. Define an 'onUpdate' method in your scene configuration instead."),
     setData: (key, value) => state.set(key, value),
     getData: (key) => state.get(key),
     scene: {
-        define: (name, setupFunc) => {
-            scenes[name] = setupFunc;
-        },
-        load: (name) => {
-            if (scenes[name]) {
-                resetSceneState();
-                scenes[name]();
-                // FIX: Escape template literal within the string.
-                console.log(\`Scene '\\\${name}' loaded.\`);
-            } else {
-                // FIX: Escape template literal within the string.
-                console.error(\`Scene '\\\${name}' is not defined.\`);
-            }
-        }
+        define: (name, config) => sceneManager.define(name, config),
+        load: (name, params) => sceneManager.load(name, params),
     },
     create: {
         mesh: ({ name = 'unnamed', geometry = 'box', material = 'normal', color = 0xcccccc, textureUrl = null, position = [0,0,0], scale = [1,1,1], properties = {} }) => {
@@ -195,7 +186,6 @@ camera.position.z = 10;
 if (window.LeapGuard && window.LeapGuard.instrument) {
     Engine.create.mesh = window.LeapGuard.instrument('Engine.create.mesh', Engine.create.mesh);
     Engine.create.light = window.LeapGuard.instrument('Engine.create.light', Engine.create.light);
-    Engine.onUpdate = window.LeapGuard.instrument('Engine.onUpdate', Engine.onUpdate);
     Engine.scene.load = window.LeapGuard.instrument('Engine.scene.load', Engine.scene.load);
     window.LeapGuard.init({
         healthCheck: () => {

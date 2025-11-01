@@ -51,100 +51,92 @@ Engine.setScalingStrategy('fit');
 // --- Scene Definitions ---
 
 // Define the start scene
-Engine.scene.define('start', () => {
-    
-    // Create title text with an initial alpha of 0 (invisible)
-    const titleText = Engine.create.sprite({
-        name: 'titleText',
-        type: 'ui',
-        x: V_SIZE.width / 2,
-        y: V_SIZE.height / 3,
-        alpha: 0, // Start invisible
-    });
-    
-    Engine.ui.drawText({
-        target: titleText,
-        text: \`CUBE DODGER\`,
-        size: 80,
-        color: '#ffdd00',
-        font: 'sans-serif',
-        align: 'center',
-    });
-    
-    // Use the tween engine to fade the title in
-    Engine.tween.create(titleText, { alpha: 1 }, { duration: 2000, ease: 'easeIn' }).start();
+Engine.scene.define('start', {
+    onEnter: () => {
+        // Create title text with an initial alpha of 0 (invisible)
+        const titleText = Engine.create.sprite({
+            name: 'titleText',
+            type: 'ui',
+            x: V_SIZE.width / 2,
+            y: V_SIZE.height / 3,
+            alpha: 0, // Start invisible
+        });
+        
+        Engine.ui.drawText({
+            target: titleText,
+            text: \`CUBE DODGER\`,
+            size: 80,
+            color: '#ffdd00',
+            font: 'sans-serif',
+            align: 'center',
+        });
+        
+        // Use the tween engine to fade the title in
+        Engine.tween.create(titleText, { alpha: 1 }, { duration: 2000, ease: 'easeIn' }).start();
 
-    // Create prompt text
-    const startPrompt = Engine.create.sprite({
-        name: 'startPrompt',
-        type: 'ui',
-        x: V_SIZE.width / 2,
-        y: V_SIZE.height * 0.6,
-    });
-    
-    Engine.ui.drawText({
-        target: startPrompt,
-        text: \`Press SPACE to Begin\\nUse WASD or Arrows to Move\`,
-        size: 36,
-        color: 'white',
-        font: 'monospace',
-        align: 'center'
-    });
-    
-    // Handle starting the game
-    Engine.onUpdate(() => {
+        // Create prompt text
+        const startPrompt = Engine.create.sprite({
+            name: 'startPrompt',
+            type: 'ui',
+            x: V_SIZE.width / 2,
+            y: V_SIZE.height * 0.6,
+        });
+        
+        Engine.ui.drawText({
+            target: startPrompt,
+            text: \`Press SPACE to Begin\\nUse WASD or Arrows to Move\`,
+            size: 36,
+            color: 'white',
+            font: 'monospace',
+            align: 'center'
+        });
+    },
+    onUpdate: () => {
+        // Handle starting the game
         if (Engine.input.isKeyJustPressed('Space')) {
             Engine.scene.load('main'); // Start the main game
         }
-    });
+    }
 });
 
 
 // Define the main game scene
-Engine.scene.define('main', () => {
+Engine.scene.define('main', {
+    onEnter: () => {
+        // Game state setup
+        Engine.setData('score', 0);
+        Engine.setData('gameOver', false);
+        Engine.setData('obstacleSpeed', 100);
+        Engine.setData('obstacleSpawnRate', 1.2); 
+        Engine.setData('timeSinceLastObstacle', 0);
 
-    // Game state setup
-    Engine.setData('score', 0);
-    Engine.setData('gameOver', false);
-    Engine.setData('obstacleSpeed', 100);
-    Engine.setData('obstacleSpawnRate', 1.2); 
-    Engine.setData('timeSinceLastObstacle', 0);
+        // Create the player character as a white cube
+        const player = Engine.create.sprite({
+            name: 'player',
+            x: V_SIZE.width / 2,
+            y: V_SIZE.height - 100,
+            width: 50,
+            height: 50,
+            color: 'white',
+            clampToScreen: true,
+            drag: 0.1 
+        });
+        Engine.setData('player', player);
 
-    // Create the player character as a white cube
-    const player = Engine.create.sprite({
-        name: 'player',
-        x: V_SIZE.width / 2,
-        y: V_SIZE.height - 100,
-        width: 50,
-        height: 50,
-        color: 'white',
-        clampToScreen: true,
-        drag: 0.1 
-    });
+        // Create a UI element for the score
+        const scoreText = Engine.create.sprite({ name: 'scoreText', type: 'ui', x: 20, y: 40 });
+        Engine.setData('scoreText', scoreText);
 
-    // Create a UI element for the score
-    const scoreText = Engine.create.sprite({
-        name: 'scoreText',
-        type: 'ui', 
-        x: 20,
-        y: 40
-    });
+        // Create a game over text element (initially empty)
+        const gameOverText = Engine.create.sprite({ name: 'gameOverText', type: 'ui', x: V_SIZE.width / 2, y: V_SIZE.height / 2 });
+        Engine.setData('gameOverText', gameOverText);
+    },
 
-    // Create a game over text element (initially hidden)
-    const gameOverText = Engine.create.sprite({
-        name: 'gameOverText',
-        type: 'ui',
-        x: V_SIZE.width / 2,
-        y: V_SIZE.height / 2,
-    });
-
-
-    // --- Main Game Loop ---
-    Engine.onUpdate((deltaTime) => {
+    onUpdate: (deltaTime) => {
         // --- Handle Game Over State ---
         if (Engine.getData('gameOver')) {
             Engine.ui.drawText({
-                target: gameOverText,
+                target: Engine.getData('gameOverText'),
                 text: \`GAME OVER\\nFinal Score: \${Engine.getData('score')}\\n\\nPress R to Restart\`,
                 size: 60,
                 color: 'red',
@@ -157,6 +149,9 @@ Engine.scene.define('main', () => {
             }
             return; // Stop the rest of the game logic
         }
+
+        const player = Engine.getData('player');
+        if (!player) return;
 
         // --- Player Controls ---
         const playerSpeed = 600;
@@ -247,13 +242,13 @@ Engine.scene.define('main', () => {
         
         // --- Update UI ---
         Engine.ui.drawText({
-            target: scoreText,
+            target: Engine.getData('scoreText'),
             text: \`Score: \${Engine.getData('score')}\`,
             size: 36,
             color: '#aaffaa',
             font: 'monospace'
         });
-    });
+    }
 });
 
 // Load the start scene to begin with the menu

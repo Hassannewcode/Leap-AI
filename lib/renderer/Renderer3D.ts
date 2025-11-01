@@ -1,4 +1,3 @@
-
 export const renderer3D = `
 function animate() {
     const deltaTime = clock.getDelta();
@@ -6,8 +5,8 @@ function animate() {
     // Update engine systems
     tweenManager.update(deltaTime);
 
-    // User-defined logic
-    onUpdateCallback(deltaTime);
+    // Scene logic and user-defined updates are now handled by the scene manager
+    sceneManager.update(deltaTime);
     
      if (isInspectMode) {
         raycaster.setFromCamera(mouse, camera);

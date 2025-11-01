@@ -17,9 +17,13 @@ The \\\`window.Engine\\\` object is your direct interface to the game world. You
     *   You create instances using \\\`Engine.create.sprite()\\\` (2D) or \\\`Engine.create.mesh()\\\` (3D).
     *   **Crucially, you MUST assign a descriptive, unique \\\`name\\\` property to every GameObject you create** (e.g., \\\`name: 'player'\\\`, \\\`name: 'scoreText'\\\`). This is essential for the IDE's visual editing tools.
     *   Instances have properties and methods. To remove an object, you MUST call its own \\\`destroy()\\\` method: \\\`instance.destroy()\\\`.
-*   **Scenes:** Games are structured into \\\`Scenes\\\`.
-    *   Define scenes with \\\`Engine.scene.define('sceneName', () => { /* setup */ });\\\`.
-    *   Start or switch scenes using \\\`Engine.scene.load('sceneName')\\\`.
+*   **The Scene Manager (Handler):** You MUST structure all game logic within scenes. The scene manager is the core handler for game state and execution flow.
+    *   **Defining a Scene:** You MUST define scenes with \\\`Engine.scene.define('sceneName', { ... })\\\`. The second argument is an object containing lifecycle methods:
+        *   \\\`onEnter: (params) => { /* Code to run ONCE when the scene starts. Receives params from scene.load. */ }\\\` (Required)
+        *   \\\`onUpdate: (deltaTime) => { /* The main game loop for the scene. Runs every frame. */ }\\\` (Optional)
+        *   \\\`onExit: () => { /* Code to run ONCE when the scene is left. */ }\\\` (Optional)
+    *   **Loading a Scene:** Start or switch scenes using \\\`Engine.scene.load('sceneName', { score: 100 })\\\`. The optional second argument passes data to the new scene's \\\`onEnter\\\` method.
+    *   **CRITICAL:** Do NOT use the old \\\`Engine.onUpdate()\\\` method. All per-frame logic MUST go inside the active scene's \\\`onUpdate\\\` method.
 
 **2. OUTPUT FORMAT: THE PROJECT MANIFEST**
 You MUST ALWAYS respond with a single, valid JSON object.
@@ -182,78 +186,101 @@ const getInitialFilesTemplate = (workspaceType: WorkspaceType): FileEntry[] => {
 
     const initialGameJs = `
 import * as THREE from 'three';
-console.log("3D Low-Poly Game Engine Initialized. Scene:", Engine.getScene());
+console.log("3D Low-Poly Game Engine Initialized.");
 
-// Define the main game scene
-Engine.scene.define('main', () => {
-    // Set a simple, pleasant sky-blue background, fitting the low-poly style.
-    Engine.getScene().background = new THREE.Color(0x87CEEB);
+// --- Scene Definitions ---
 
-    // Ground plane with a forest green color
-    Engine.create.mesh({
-        name: 'ground',
-        geometry: 'plane',
-        material: 'standard', // Using MeshStandardMaterial by default
-        color: 0x228B22,
-        position: [0, 0, 0],
-        scale: [50, 50, 50],
-    }).rotation.x = -Math.PI / 2;
-
-    // Player character represented by a simple cone
-    const player = Engine.create.mesh({
-        name: 'player',
-        geometry: 'cone', // Using a cone for a simple, recognizable character shape
-        material: 'standard',
-        color: 0xffff00, // Bright yellow
-        position: [0, 0.75, 0],
-        scale: [0.5, 1.5, 0.5]
-    });
-
-    // A decorative spinning crystal (Icosahedron)
-    const spinningCrystal = Engine.create.mesh({
-        name: 'spinning-crystal',
-        geometry: 'icosahedron', // A more complex shape for visual interest
-        material: 'standard',
-        color: 0xAF8FEA, // Lavender color
-        position: [-5, 1.5, -5],
-        properties: {
-            roughness: 0.2, // Make it a bit shiny
-            metalness: 0.1
+// A simple scene for the start menu
+Engine.scene.define('start', {
+    onEnter: () => {
+        Engine.getScene().background = new THREE.Color(0x1a2b3c);
+        
+        // You would create title text and buttons here in a real game.
+        // For now, we'll just log a message and listen for a key press.
+        console.log("Start Scene Entered. Press 'Space' to begin.");
+    },
+    onUpdate: () => {
+        if (Engine.input.isKeyJustPressed('Space')) {
+            Engine.scene.load('main');
         }
-    });
-    
-    // Make the crystal bob up and down smoothly using the new tweening engine
-    const tween = Engine.tween.create(spinningCrystal.position, { y: 2.5 }, {
-        duration: 2000,
-        ease: 'easeInOut',
-        yoyo: true,      // Go back and forth
-        repeat: Infinity // Repeat forever
-    });
-    tween.start();
-
-
-    // Soft, ambient lighting and a directional light for shadows
-    Engine.create.light({type: 'hemisphere', skyColor: 0xB1E1FF, groundColor: 0xB97A20, intensity: 1.5});
-    Engine.create.light({type: 'directional', intensity: 2, position: [5, 10, 7]});
-
-    Engine.camera.follow(player, [0, 5, 10]);
-    Engine.camera.lookAt(player.position);
-
-    Engine.onUpdate((deltaTime) => {
-        spinningCrystal.rotation.y += deltaTime;
-        spinningCrystal.rotation.x += deltaTime * 0.5;
-
-        // Basic character movement
-        const speed = 5;
-        if (Engine.input.isPressed('KeyW')) player.position.z -= speed * deltaTime;
-        if (Engine.input.isPressed('KeyS')) player.position.z += speed * deltaTime;
-        if (Engine.input.isPressed('KeyA')) player.position.x -= speed * deltaTime;
-        if (Engine.input.isPressed('KeyD')) player.position.x += speed * deltaTime;
-    });
+    }
 });
 
-// Load the main scene to start the game
-Engine.scene.load('main');
+// The main gameplay scene
+Engine.scene.define('main', {
+    onEnter: () => {
+        // Set a simple, pleasant sky-blue background, fitting the low-poly style.
+        Engine.getScene().background = new THREE.Color(0x87CEEB);
+
+        // Ground plane with a forest green color
+        Engine.create.mesh({
+            name: 'ground',
+            geometry: 'plane',
+            material: 'standard',
+            color: 0x228B22,
+            position: [0, 0, 0],
+            scale: [50, 50, 50],
+        }).rotation.x = -Math.PI / 2;
+
+        // Player character represented by a simple cone
+        const player = Engine.create.mesh({
+            name: 'player',
+            geometry: 'cone',
+            material: 'standard',
+            color: 0xffff00,
+            position: [0, 0.75, 0],
+            scale: [0.5, 1.5, 0.5]
+        });
+        Engine.setData('player', player); // Store player for access in onUpdate
+
+        // A decorative spinning crystal (Icosahedron)
+        const spinningCrystal = Engine.create.mesh({
+            name: 'spinning-crystal',
+            geometry: 'icosahedron',
+            material: 'standard',
+            color: 0xAF8FEA,
+            position: [-5, 1.5, -5],
+            properties: { roughness: 0.2, metalness: 0.1 }
+        });
+        Engine.setData('spinningCrystal', spinningCrystal);
+
+        // Make the crystal bob up and down smoothly using the tweening engine
+        Engine.tween.create(spinningCrystal.position, { y: 2.5 }, {
+            duration: 2000,
+            ease: 'easeInOut',
+            yoyo: true,
+            repeat: Infinity
+        }).start();
+
+        // Soft, ambient lighting and a directional light for shadows
+        Engine.create.light({type: 'hemisphere', skyColor: 0xB1E1FF, groundColor: 0xB97A20, intensity: 1.5});
+        Engine.create.light({type: 'directional', intensity: 2, position: [5, 10, 7]});
+
+        Engine.camera.follow(player, [0, 5, 10]);
+        Engine.camera.lookAt(player.position);
+    },
+
+    onUpdate: (deltaTime) => {
+        const player = Engine.getData('player');
+        const spinningCrystal = Engine.getData('spinningCrystal');
+
+        if (spinningCrystal) {
+            spinningCrystal.rotation.y += deltaTime;
+            spinningCrystal.rotation.x += deltaTime * 0.5;
+        }
+
+        if (player) {
+            const speed = 5;
+            if (Engine.input.isPressed('KeyW')) player.position.z -= speed * deltaTime;
+            if (Engine.input.isPressed('KeyS')) player.position.z += speed * deltaTime;
+            if (Engine.input.isPressed('KeyA')) player.position.x -= speed * deltaTime;
+            if (Engine.input.isPressed('KeyD')) player.position.x += speed * deltaTime;
+        }
+    }
+});
+
+// Load the start scene to begin the game
+Engine.scene.load('start');
 `;
     
     const threeImportMap = `"three": "https://esm.sh/three@0.166.1"`;
