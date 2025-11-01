@@ -9,6 +9,7 @@ import { assetManager } from './assets/AssetManager';
 import { audioManager } from './core/AudioManager';
 import { inputManager } from './core/InputManager';
 import { sceneManager } from './core/SceneManager';
+import { eventBus } from './core/eventBus';
 
 import { visualEditor2D, visualEditor3D } from './editor/VisualEditor';
 import { physics2D } from './physics/Physics2D';
@@ -17,6 +18,8 @@ import { engine2D } from './core/Engine2D';
 import { engine3D } from './core/Engine3D';
 import { renderer2D } from './renderer/Renderer2D';
 import { renderer3D } from './renderer/Renderer3D';
+import { tweenManager } from './utils/tween';
+import { stateMachine } from './utils/stateMachine';
 
 export const getEngineScript = (workspaceType: WorkspaceType): string => {
     
@@ -28,7 +31,10 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
         audioManager,
         inputManager,
         sceneManager,
-        safetyProtocol
+        safetyProtocol,
+        eventBus,
+        tweenManager,
+        stateMachine
     ];
     
     if (workspaceType === '2D') {

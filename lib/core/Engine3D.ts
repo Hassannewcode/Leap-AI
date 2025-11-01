@@ -149,7 +149,8 @@ window.Engine = {
             const texture = loader.load(paths);
             scene.background = texture;
             return texture;
-        }
+        },
+        stateMachine: createStateMachine
     },
     destroy: (object3D) => {
         if (!object3D) return;
@@ -183,7 +184,9 @@ window.Engine = {
     },
     audio: {
         play: (soundName) => playSound(soundName)
-    }
+    },
+    events: eventBus,
+    tween: tweenManager,
 };
 
 camera.position.z = 10;

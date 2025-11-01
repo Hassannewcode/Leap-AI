@@ -1,9 +1,4 @@
 
-
-
-
-
-
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AccessibilityIssue, MetaIssue, FileEntry } from '../types';
 import { ActivityLogger } from '../lib/utils/activityLogger';
@@ -62,7 +57,7 @@ class ErrorBoundary extends Component<Props, State> {
 
     constructor(props: Props) {
         super(props);
-        this.state = { 
+        this.state = {
             hasError: false,
             isRecovering: false,
             recoveryLogs: [],
@@ -74,7 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
         return { hasError: true };
     }
 
-    // FIX: Reverted to an arrow function to ensure `this` is correctly bound and resolve type errors.
+    // FIX: Converted to an arrow function property to ensure `this` is always correctly bound without manual binding.
     componentDidCatch = (error: Error, errorInfo: ErrorInfo) => {
         console.error("LeapGuard captured an unhandled error:", error, errorInfo);
         
@@ -88,7 +83,7 @@ class ErrorBoundary extends Component<Props, State> {
         });
     }
 
-    // FIX: Reverted to an arrow function to ensure `this` is correctly bound and resolve type errors.
+    // FIX: Converted to an arrow function property to ensure correct `this` binding.
     gatherDiagnostics = (error: Error, errorInfo: ErrorInfo): DiagnosticData => {
         return {
             error,
@@ -102,7 +97,7 @@ class ErrorBoundary extends Component<Props, State> {
         };
     }
     
-    // FIX: Reverted to an arrow function to ensure `this` is correctly bound and resolve type errors.
+    // FIX: Converted to an arrow function property. Does not use `this`, but kept consistent for style.
     createCrashSignature = (error: Error, errorInfo: ErrorInfo): string => {
         const stack = error.stack || '';
         const componentStack = errorInfo.componentStack || '';
@@ -113,17 +108,18 @@ class ErrorBoundary extends Component<Props, State> {
         return signature.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 0).toString(16);
     }
     
+    // FIX: Converted to an arrow function property to ensure correct `this` binding.
     addRecoveryLog = (message: string) => {
         this.setState(prevState => ({
             recoveryLogs: [...prevState.recoveryLogs, message]
         }));
-    };
+    }
 
+    // FIX: Converted to an arrow function property to ensure correct `this` binding without needing `.bind()` in the constructor.
     handleRunAnalysis = async () => {
         if (!this.state.diagnostics) return;
 
         this.setState({ isRecovering: true, recoveryLogs: [] });
-        this.addRecoveryLog("Initializing AI recovery drone...");
 
         try {
             const activeWorkspaceId = sessionStorage.getItem('activeWorkspaceId');
@@ -171,8 +167,9 @@ class ErrorBoundary extends Component<Props, State> {
             this.addRecoveryLog(`ERROR: Recovery failed. ${errorMessage}`);
             this.setState({ isRecovering: false });
         }
-    };
+    }
     
+    // FIX: Converted to an arrow function property to ensure correct `this` binding without needing `.bind()` in the constructor.
     handleSystematicRepair = () => {
         this.setState({ isRecovering: true, recoveryLogs: [] });
         const steps = [
@@ -196,9 +193,9 @@ class ErrorBoundary extends Component<Props, State> {
                 window.location.reload();
             }
         }, 700);
-    };
+    }
 
-    // FIX: Reverted to an arrow function to ensure `this` is correctly bound and resolve type errors.
+    // FIX: Converted to an arrow function property to ensure correct `this` binding.
     renderRecoveryConsole = () => {
         const { diagnostics, isRecovering, recoveryLogs, fixAttemptFailed } = this.state;
         if (!diagnostics) return null;

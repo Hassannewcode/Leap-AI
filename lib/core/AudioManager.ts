@@ -6,7 +6,7 @@ function playSound(soundName) {
         audioContext.resume();
     }
     
-    const soundId = \`offline-sound-\\\${soundName}\`;
+    const soundId = \`offline-sound-\${soundName}\`;
     const audioEl = document.getElementById(soundId);
 
     if (audioEl && typeof audioEl.play === 'function') {

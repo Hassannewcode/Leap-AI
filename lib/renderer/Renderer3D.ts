@@ -3,6 +3,10 @@ export const renderer3D = `
 function animate() {
     const deltaTime = clock.getDelta();
     
+    // Update engine systems
+    tweenManager.update(deltaTime);
+
+    // User-defined logic
     onUpdateCallback(deltaTime);
     
      if (isInspectMode) {

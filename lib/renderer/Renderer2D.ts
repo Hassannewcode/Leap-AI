@@ -4,6 +4,9 @@ function gameLoop(timestamp) {
     const deltaTime = (timestamp - lastTime) / 1000 || 0;
     lastTime = timestamp;
 
+    // --- ENGINE SYSTEMS UPDATE ---
+    tweenManager.update(deltaTime);
+    
     // --- PHYSICS & MOVEMENT UPDATE ---
     sprites.forEach(s => {
         // Apply acceleration to velocity
@@ -30,8 +33,9 @@ function gameLoop(timestamp) {
     
     // Editor/Inspector Logic
     if (isInspectMode) {
-        const virtualMouseX = (mousePos.x - offsetX) / scale;
-        const virtualMouseY = (mousePos.y - offsetY) / scale;
+        // Adjust mouse position for camera pan and zoom
+        const worldMouseX = ( (mousePos.x - offsetX) / scale - VIRTUAL_WIDTH / 2 ) / camera.zoom + camera.x + VIRTUAL_WIDTH / 2;
+        const worldMouseY = ( (mousePos.y - offsetY) / scale - VIRTUAL_HEIGHT / 2 ) / camera.zoom + camera.y + VIRTUAL_HEIGHT / 2;
         
         let foundSprite = null;
         // Iterate backwards to select the top-most sprite
@@ -45,8 +49,11 @@ function gameLoop(timestamp) {
                 bottom: s.y + s.height / 2 
             };
 
-            // UI Text has different bounding box logic
+            // UI Text has different bounding box logic and is not affected by camera
             if (s.isText && s.type === 'ui') {
+                const uiMouseX = (mousePos.x - offsetX) / scale;
+                const uiMouseY = (mousePos.y - offsetY) / scale;
+                
                 ctx.font = \`\\\${s.size}px \\\${s.font}\`;
                 const metrics = ctx.measureText(s.text);
                 const textHeight = s.size;
@@ -63,16 +70,21 @@ function gameLoop(timestamp) {
                 }
                 bounds.top = s.y - textHeight;
                 bounds.bottom = s.y;
-            }
-
-            if (
-                virtualMouseX >= bounds.left &&
-                virtualMouseX <= bounds.right &&
-                virtualMouseY >= bounds.top &&
-                virtualMouseY <= bounds.bottom
-            ) {
-                foundSprite = s;
-                break; 
+                 if (
+                    uiMouseX >= bounds.left && uiMouseX <= bounds.right &&
+                    uiMouseY >= bounds.top && uiMouseY <= bounds.bottom
+                ) {
+                    foundSprite = s;
+                    break;
+                }
+            } else {
+                 if (
+                    worldMouseX >= bounds.left && worldMouseX <= bounds.right &&
+                    worldMouseY >= bounds.top && worldMouseY <= bounds.bottom
+                ) {
+                    foundSprite = s;
+                    break; 
+                }
             }
         }
         hoveredSprite = foundSprite;
@@ -81,6 +93,7 @@ function gameLoop(timestamp) {
     // Particle Update
     particles = particles.filter(p => p.life > 0);
     particles.forEach(p => {
+        p.vy += (p.gravity || 0) * deltaTime;
         p.x += p.vx * deltaTime;
         p.y += p.vy * deltaTime;
         p.life -= deltaTime;
@@ -121,6 +134,12 @@ function gameLoop(timestamp) {
     
     ctx.save(); // Start of world rendering
 
+    // Apply Camera Follow
+    if (camera.target) {
+        camera.x += (camera.target.x - camera.x) * camera.followSpeed;
+        camera.y += (camera.target.y - camera.y) * camera.followSpeed;
+    }
+
     // Apply Camera Shake
     if (camera.shakeDuration > 0) {
         camera.shakeDuration -= deltaTime;
@@ -132,7 +151,10 @@ function gameLoop(timestamp) {
         }
     }
 
-    // Apply Camera Position
+    // Apply Camera Zoom and Position
+    ctx.translate(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2);
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-VIRTUAL_WIDTH / 2, -VIRTUAL_HEIGHT / 2);
     ctx.translate(-camera.x, -camera.y);
     
     const gameSprites = sprites.filter(s => s.type !== 'ui');
@@ -163,11 +185,10 @@ function gameLoop(timestamp) {
     });
 
     // Particles
-    ctx.globalAlpha = 1.0;
     particles.forEach(p => {
-        ctx.fillStyle = p.color;
-        const lifeRatio = Math.max(0, p.life / 0.5);
+        const lifeRatio = Math.max(0, p.life / p.maxLife);
         ctx.globalAlpha = lifeRatio > 0.5 ? 1 : lifeRatio * 2;
+        ctx.fillStyle = p.color;
         ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
     });
     ctx.globalAlpha = 1.0;
@@ -177,11 +198,14 @@ function gameLoop(timestamp) {
     // UI Sprites (drawn on top, without camera offset)
     uiSprites.forEach(sprite => {
          if (sprite.isText) {
+            ctx.save();
+            ctx.globalAlpha = sprite.alpha;
             ctx.fillStyle = sprite.color;
             // FIX: Escape template literal within the string.
             ctx.font = \`\\\${sprite.size}px \\\${sprite.font}\`;
             ctx.textAlign = sprite.align;
             ctx.fillText(sprite.text, sprite.x, sprite.y);
+            ctx.restore();
         }
     });
 
@@ -196,32 +220,41 @@ function gameLoop(timestamp) {
             width: s.width,
             height: s.height
         };
+        
+        // UI elements are not affected by camera, so we draw their overlay separately
+        if (s.type === 'ui') {
+            if (s.isText) {
+                 ctx.font = \`\\\${s.size}px \\\${s.font}\`;
+                 const metrics = ctx.measureText(s.text);
+                 bounds.width = metrics.width;
+                 bounds.height = s.size;
+                 bounds.y = s.y - s.size;
 
-        if (s.isText && s.type === 'ui') {
-             ctx.font = \`\\\${s.size}px \\\${s.font}\`;
-             const metrics = ctx.measureText(s.text);
-             bounds.width = metrics.width;
-             bounds.height = s.size;
-             bounds.y = s.y - s.size;
-
-             if (s.align === 'center') {
-                bounds.x = s.x - metrics.width / 2;
-             } else if (s.align === 'right') {
-                bounds.x = s.x - metrics.width;
-             } else { // 'left'
-                bounds.x = s.x;
-             }
+                 if (s.align === 'center') {
+                    bounds.x = s.x - metrics.width / 2;
+                 } else if (s.align === 'right') {
+                    bounds.x = s.x - metrics.width;
+                 } else { // 'left'
+                    bounds.x = s.x;
+                 }
+            }
+        } else {
+            // For game objects, apply the camera transform to the overlay
+            ctx.translate(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-VIRTUAL_WIDTH / 2, -VIRTUAL_HEIGHT / 2);
+            ctx.translate(-camera.x, -camera.y);
         }
         
         // Transparent blue overlay
-        ctx.globalAlpha = 0.15; // 85% transparent
+        ctx.globalAlpha = 0.15;
         ctx.fillStyle = '#00aaff';
         ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
         
         // Outline
         ctx.globalAlpha = 1.0;
         ctx.strokeStyle = '#00aaff';
-        ctx.lineWidth = 2 / scale; // Keep line width consistent
+        ctx.lineWidth = 2 / (scale * camera.zoom); // Keep line width consistent with zoom
         ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
         
         ctx.restore();

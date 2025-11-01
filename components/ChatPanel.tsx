@@ -363,11 +363,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDel
                     </button>
                 </div>
                 <button 
-                    onClick={() => {
-                        if (window.confirm("Are you sure you want to delete this workspace? This action cannot be undone.")) {
-                            onDeleteWorkspace();
-                        }
-                    }} 
+                    onClick={onDeleteWorkspace}
                     className="text-xs mt-3 w-full text-center p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
                 >
                     Delete Workspace

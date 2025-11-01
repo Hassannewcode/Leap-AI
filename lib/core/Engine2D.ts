@@ -46,10 +46,13 @@ let onUpdateCallback = (deltaTime) => {};
 let lastTime = 0;
 const state = new Map();
 
-// Camera now includes state for screen shake effects
+// Camera now includes state for screen shake effects, zoom, and smooth following
 const camera = { 
     x: 0, 
     y: 0,
+    zoom: 1,
+    target: null,
+    followSpeed: 0.05,
     shakeIntensity: 0,
     shakeDuration: 0,
 };
@@ -66,6 +69,8 @@ resetSceneState = function() {
     onUpdateCallback = () => {};
     camera.x = 0;
     camera.y = 0;
+    camera.zoom = 1;
+    camera.target = null;
     camera.shakeIntensity = 0;
     camera.shakeDuration = 0;
 }
@@ -112,6 +117,7 @@ window.Engine = {
                 x: 0, y: 0, 
                 width: 32, height: 32, 
                 imageUrl: null, color: 'white', type: 'game',
+                alpha: 1,
                 rotation: 0,
                 vx: 0, vy: 0, // velocity
                 ax: 0, ay: 0, // acceleration
@@ -132,17 +138,19 @@ window.Engine = {
             sprites.push(spriteInstance);
             return spriteInstance;
         },
-         particles: ({ x=0, y=0, count=10, color='orange', size=2, life=0.5 }) => {
+         particles: ({ x=0, y=0, count=10, color='orange', size=2, life=0.5, gravity=0 }) => {
             for(let i=0; i<count; i++) {
                 particles.push({
                     x, y,
                     vx: (Math.random() - 0.5) * 150,
                     vy: (Math.random() - 0.5) * 150,
                     life: Math.random() * life,
-                    color, size
+                    maxLife: life,
+                    color, size, gravity
                 });
             }
-        }
+        },
+        stateMachine: createStateMachine
     },
     destroy: (spriteToDestroy) => {
         if (spriteToDestroy && typeof spriteToDestroy.destroy === 'function') {
@@ -164,12 +172,15 @@ window.Engine = {
     camera: {
         get x() { return camera.x; },
         get y() { return camera.y; },
+        setZoom: (z) => camera.zoom = Math.max(0.1, z),
+        getZoom: () => camera.zoom,
         shake: (intensity, duration) => {
             camera.shakeIntensity = intensity;
             camera.shakeDuration = duration;
         },
-        follow: (sprite, offset = {x: 0, y: 0}) => {
-           console.warn("Camera following is not used in this game type.");
+        follow: (sprite, speed = 0.05) => {
+           camera.target = sprite;
+           camera.followSpeed = speed;
         }
     },
     background: {
@@ -192,6 +203,7 @@ window.Engine = {
                 isText: true,
                 text: config.text,
                 color: config.color || 'white',
+                alpha: config.alpha ?? 1,
                 size: config.size || 16,
                 font: config.font || 'sans-serif',
                 align: config.align || 'left',
@@ -200,7 +212,9 @@ window.Engine = {
     },
     audio: {
         play: (soundName) => playSound(soundName)
-    }
+    },
+    events: eventBus,
+    tween: tweenManager,
 };
 
 // --- LeapGuard Instrumentation ---

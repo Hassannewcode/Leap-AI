@@ -53,12 +53,13 @@ Engine.setScalingStrategy('fit');
 // Define the start scene
 Engine.scene.define('start', () => {
     
-    // Create title text
+    // Create title text with an initial alpha of 0 (invisible)
     const titleText = Engine.create.sprite({
         name: 'titleText',
         type: 'ui',
         x: V_SIZE.width / 2,
         y: V_SIZE.height / 3,
+        alpha: 0, // Start invisible
     });
     
     Engine.ui.drawText({
@@ -67,9 +68,12 @@ Engine.scene.define('start', () => {
         size: 80,
         color: '#ffdd00',
         font: 'sans-serif',
-        align: 'center'
+        align: 'center',
     });
     
+    // Use the tween engine to fade the title in
+    Engine.tween.create(titleText, { alpha: 1 }, { duration: 2000, ease: 'easeIn' }).start();
+
     // Create prompt text
     const startPrompt = Engine.create.sprite({
         name: 'startPrompt',
@@ -212,7 +216,7 @@ Engine.scene.define('main', () => {
         bullets.forEach(bullet => {
             obstacles.forEach(obstacle => {
                 if (Engine.physics.checkCollision(bullet, obstacle)) {
-                    Engine.create.particles({ x: obstacle.x, y: obstacle.y, count: 25, color: '#A9A9A9', life: 0.8, size: 4 });
+                    Engine.create.particles({ x: obstacle.x, y: obstacle.y, count: 25, color: '#A9A9A9', life: 0.8, size: 4, gravity: 200 });
                     Engine.camera.shake(10, 0.15);
                     
                     bullet.destroy();
@@ -232,7 +236,7 @@ Engine.scene.define('main', () => {
         // Player vs Obstacles
         obstacles.forEach(obstacle => {
             if (Engine.physics.checkCollision(player, obstacle)) {
-                Engine.create.particles({ x: player.x, y: player.y, count: 80, color: '#ff0000', life: 1.5, size: 5 });
+                Engine.create.particles({ x: player.x, y: player.y, count: 80, color: '#ff0000', life: 1.5, size: 5, gravity: 100 });
                 Engine.camera.shake(30, 0.7);
                 player.destroy();
                 obstacle.destroy();

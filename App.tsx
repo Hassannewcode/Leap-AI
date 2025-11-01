@@ -1,12 +1,22 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import JSZip from 'jszip';
 import IDEView from './components/IDEView';
 import WorkspaceModal from './components/WorkspaceModal';
+import DeleteWorkspaceModal from './components/DeleteWorkspaceModal';
 import { getInitialWorkspaceData, sendMessageToAi, generateImageAsset } from './services/geminiService';
 import type { WorkspaceType, Workspace, ChatMessage, UserChatMessage, ModelChatMessage, FileEntry, GroundingSource, AssetInfo, AiMode, LocalAsset } from './types';
 import SpinnerIcon from './components/icons/SpinnerIcon';
 import { cleanForSerialization } from './lib/utils/serialization';
 import { useOnlineStatus } from './lib/utils/hooks';
 import { extractJsonFromString } from './lib/utils/json';
+
+// FIX: Define a minimal interface for the JSZipObject to resolve type errors
+// when processing uploaded zip files. The 'unknown' type was causing property access errors.
+interface JSZipObject {
+    name: string;
+    dir: boolean;
+    async(type: 'string'): Promise<string>;
+}
 
 const generateId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -20,6 +30,8 @@ const App: React.FC = () => {
     const [loadingMode, setLoadingMode] = useState<AiMode | null>(null);
     const [isInitialized, setIsInitialized] = useState<boolean>(false);
     const [aiProgress, setAiProgress] = useState<string[]>([]);
+    const [appStatusMessage, setAppStatusMessage] = useState<string | null>(null);
+    const [workspaceToDeleteId, setWorkspaceToDeleteId] = useState<string | null>(null);
     const isOnline = useOnlineStatus();
 
     // Load from localStorage on initial mount
@@ -66,6 +78,10 @@ const App: React.FC = () => {
     const activeWorkspace = useMemo(() => {
         return activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
     }, [activeWorkspaceId, workspaces]);
+
+    const workspaceMarkedForDeletion = useMemo(() => {
+        return workspaceToDeleteId ? workspaces[workspaceToDeleteId] : null;
+    }, [workspaceToDeleteId, workspaces]);
 
     const handleCreateWorkspace = useCallback((type: WorkspaceType) => {
         try {
@@ -287,17 +303,31 @@ const App: React.FC = () => {
         setWorkspaces(prev => ({ ...prev, [activeWorkspace.id]: updatedWs }));
     }, [activeWorkspace]);
 
-    const handleDeleteWorkspace = useCallback((idToDelete: string) => {
-        if (!workspaces[idToDelete]) return;
+    const requestDeleteWorkspace = useCallback((idToDelete: string) => {
+        if (workspaces[idToDelete]) {
+            setWorkspaceToDeleteId(idToDelete);
+        }
+    }, [workspaces]);
 
-        const newWorkspaces = { ...workspaces };
-        delete newWorkspaces[idToDelete];
-        setWorkspaces(newWorkspaces);
+    const confirmDeleteWorkspace = useCallback(() => {
+        if (!workspaceToDeleteId) return;
 
-        if (activeWorkspaceId === idToDelete) {
+        setWorkspaces(prev => {
+            const newWorkspaces = { ...prev };
+            delete newWorkspaces[workspaceToDeleteId];
+            return newWorkspaces;
+        });
+
+        if (activeWorkspaceId === workspaceToDeleteId) {
             setActiveWorkspaceId(null);
         }
-    }, [workspaces, activeWorkspaceId]);
+        
+        setWorkspaceToDeleteId(null); // Close modal
+    }, [workspaceToDeleteId, activeWorkspaceId]);
+
+    const cancelDeleteWorkspace = useCallback(() => {
+        setWorkspaceToDeleteId(null);
+    }, []);
     
     const handleUpdateFileContent = useCallback((path: string, content: string) => {
         if (!activeWorkspace) return;
@@ -389,15 +419,101 @@ const App: React.FC = () => {
         }
     }, [activeWorkspace, isCreatingAsset]);
 
+    const handleUploadWorkspace = useCallback(async (file: File) => {
+        if (!file.name.endsWith('.zip')) {
+            alert('Please upload a valid .zip file.');
+            return;
+        }
+
+        setAppStatusMessage(`Importing '${file.name}'...`);
+        
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const files: FileEntry[] = [];
+            
+            // Find the index.html file to determine the root path
+            // FIX: Cast Object.values to the correct type to avoid 'unknown' property access errors.
+            const indexHtmlEntry = (Object.values(zip.files) as JSZipObject[]).find((entry) => 
+                !entry.dir && entry.name.endsWith('index.html')
+            );
+
+            if (!indexHtmlEntry) {
+                throw new Error('The uploaded zip file must contain an index.html file.');
+            }
+            
+            const indexHtmlContent = await indexHtmlEntry.async('string');
+
+            // Determine the base path. If index.html is at 'my-project/index.html', basePath is 'my-project/'.
+            // If it's at the root 'index.html', basePath is ''.
+            const pathParts = indexHtmlEntry.name.split('/');
+            const basePath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') + '/' : '';
+
+            const filePromises = Object.keys(zip.files).map(async (filename) => {
+                const zipEntry = zip.files[filename] as JSZipObject;
+                if (!zipEntry.dir) {
+                    const content = await zipEntry.async('string');
+                    // Strip the base path from the filename
+                    const finalPath = filename.startsWith(basePath) ? filename.substring(basePath.length) : filename;
+                    
+                    // Don't add empty paths (e.g., if the base path itself was a file somehow)
+                    if (finalPath) {
+                        files.push({ path: finalPath, content });
+                    }
+                }
+            });
+
+            await Promise.all(filePromises);
+            
+            const validFiles = files.filter(f => f.path);
+
+            const workspaceType: WorkspaceType = indexHtmlContent.includes('three') ? '3D' : '2D';
+            const newId = generateId();
+            const workspaceName = file.name.replace(/\.zip$/, '');
+
+            const newWorkspace: Workspace = {
+                id: newId,
+                name: `${workspaceName} (Imported)`,
+                type: workspaceType,
+                files: validFiles,
+                chatHistory: [
+                    {
+                        id: `model-init-${Date.now()}`,
+                        role: 'model',
+                        text: `Project '${workspaceName}' was successfully imported. I've loaded all the files. What would you like to work on?`,
+                        fullResponse: JSON.stringify({
+                            thinking: `Imported project from ${file.name}. Inferred project type as ${workspaceType}.`,
+                            explanation: `Project '${workspaceName}' was successfully imported.`,
+                            files: validFiles,
+                            assetsUsed: []
+                        }),
+                        filesUpdated: validFiles.map(f => f.path)
+                    }
+                ],
+                localAssets: [],
+                lastModified: Date.now(),
+            };
+
+            setWorkspaces(prev => ({ ...prev, [newId]: newWorkspace }));
+            setActiveWorkspaceId(newId);
+
+        } catch (error) {
+            console.error("Failed to upload and process workspace:", error);
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+            alert(`Error importing project: ${errorMessage}`);
+        } finally {
+            setAppStatusMessage(null);
+        }
+    }, []);
+
     const handleReturnToLauncher = useCallback(() => {
         setActiveWorkspaceId(null);
     }, []);
     
-    if (!isInitialized) {
+    if (!isInitialized || appStatusMessage) {
         return (
             <div className="w-screen h-screen bg-black flex flex-col items-center justify-center text-gray-400">
                 <SpinnerIcon className="w-10 h-10 text-blue-500" />
-                <p className="mt-4">Loading Leap AI...</p>
+                <p className="mt-4">{appStatusMessage || 'Loading Leap AI...'}</p>
             </div>
         );
     }
@@ -407,7 +523,17 @@ const App: React.FC = () => {
             workspaces={Object.values(workspaces)}
             onSelect={handleSelectWorkspace}
             onCreate={handleCreateWorkspace}
-            onDelete={handleDeleteWorkspace}
+            onDelete={requestDeleteWorkspace}
+            onUpload={handleUploadWorkspace}
+            deleteModal={
+                workspaceMarkedForDeletion && (
+                    <DeleteWorkspaceModal
+                        workspace={workspaceMarkedForDeletion}
+                        onConfirm={confirmDeleteWorkspace}
+                        onCancel={cancelDeleteWorkspace}
+                    />
+                )
+            }
         />;
     }
 
@@ -426,12 +552,19 @@ const App: React.FC = () => {
                 onRetry={handleRetry}
                 onRestoreCheckpoint={handleRestoreCheckpoint}
                 onRenameWorkspace={handleRenameWorkspace}
-                onDeleteWorkspace={() => handleDeleteWorkspace(activeWorkspace.id)}
+                onDeleteWorkspace={() => requestDeleteWorkspace(activeWorkspace.id)}
                 onReturnToLauncher={handleReturnToLauncher}
                 onUpdateFileContent={handleUpdateFileContent}
                 onUploadLocalAsset={handleUploadLocalAsset}
                 onCreateLocalAsset={handleCreateLocalAsset}
             />
+            {workspaceMarkedForDeletion && (
+                <DeleteWorkspaceModal
+                    workspace={workspaceMarkedForDeletion}
+                    onConfirm={confirmDeleteWorkspace}
+                    onCancel={cancelDeleteWorkspace}
+                />
+            )}
         </div>
     );
 };
