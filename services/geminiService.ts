@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Part, Modality } from "@google/genai";
 import type { WorkspaceType, Workspace, ModelChatMessage, FileEntry, AiMode, UserChatMessage, AssetInfo } from '../types';
 import { getEngineScript } from "../lib/engine";
@@ -145,6 +146,7 @@ A functional but ugly game is a failure. You are a digital artist and an expert 
 **7. CODE QUALITY & ORGANIZATION**
 - **Clean, Commented Code:** You MUST write clean, readable, and well-organized code. All non-trivial logic MUST be accompanied by comments explaining its purpose. Explain complex algorithms, the purpose of functions, and the meaning of "magic numbers."
 - **Modularity:** Break down logic into smaller, single-responsibility functions and classes. Avoid creating monolithic scripts. Follow the "Proactive Organization" directive in the File System mandate.
+- **Performance by Design:** For advanced projects, you MUST proactively implement performance optimization techniques inspired by professional game development. Your goal is to ensure the game runs smoothly, even as complexity increases. This includes, but is not limited to, strategies like object pooling, sprite batching, occlusion culling, and efficient data structures.
 
 **8. THE VIGILANT DEBUGGER: YOUR INTERNAL LINTER & TESTER**
 You are a massively parallel AI agent. You MUST act as if you are analyzing and refactoring code in multiple threads simultaneously to ensure maximum quality and speed.
@@ -313,8 +315,7 @@ Engine.scene.define('main', {
     }
 });
 
-// Load the start scene to begin the game
-Engine.scene.load('start');
+// The game will now wait for the first user interaction (click or keypress) to load the 'start' scene.
 `;
     
     const threeImportMap = `"three": "https://esm.sh/three@0.166.1"`;
@@ -536,7 +537,7 @@ export const sendMessageToAi = async (
     prompt: string,
     image: { data: string; mimeType: string; } | null,
     mode: AiMode,
-    onProgress?: (update: { stage: 'planner_start' | 'planner_end' | 'coder_start' | 'coder_end'; content?: string }) => void
+    onProgress?: (update: { stage: string; content?: string }) => void
 ): Promise<GenerateContentResponse> => {
     if (!process.env.API_KEY) {
         throw new Error("API Key is not configured. Cannot contact AI service.");
@@ -574,37 +575,62 @@ export const sendMessageToAi = async (
         finalPrompt = `${localAssetsContext}\n\n---\n\nUser Request: ${prompt}`;
     }
     
-    // TEAM MODE: Multi-step creative process
-    if (mode === 'team') {
-        // --- 1. Planner Step ---
-        onProgress?.({ stage: 'planner_start', content: "Task received. Planner agent is analyzing the request..." });
-        const plannerSystemInstruction = `You are VibeCode-Planner, a world-class principal game engineer and creative director. Your role is to analyze a user's request and the current state of the codebase to produce a comprehensive, step-by-step execution plan for a junior developer AI.
+    // --- UNIFIED 2-STEP CREATIVE PROCESS ---
+
+    // --- 1. Planner Step (Streaming) ---
+    onProgress?.({ stage: 'planner_start', content: "Analyzing request..." });
+    const plannerSystemInstruction = mode === 'team'
+        ? `You are VibeCode-Planner, a world-class principal game engineer and creative director. Your role is to analyze a user's request and the current state of the codebase to produce a comprehensive, step-by-step execution plan for a junior developer AI.
 - The plan must be exceptionally detailed and clear, aligning with the CORE AI Protocol to maximize potential points.
 - It must specify which files to create, modify, or delete.
 - It must include creative suggestions for "game juice" (visual effects, sounds, animations) to make the game more engaging.
 - It must consider the existing code to ensure new features integrate smoothly and maintain high quality.
-- Your output MUST be ONLY the text of the plan, nothing else. Be concise but thorough.`;
-        
-        const plannerUserMessageParts: Part[] = [{ text: `Analyze the user request and project history to create a detailed implementation plan.` }, { text: `USER REQUEST & CONTEXT: ${finalPrompt}` }];
-        if (image) {
-            plannerUserMessageParts.unshift({
-                inlineData: { mimeType: image.mimeType, data: image.data },
-            });
-        }
-        const plannerContent = [...apiHistory, { role: 'user', parts: plannerUserMessageParts }];
-
-        const plannerResponse = await ai.models.generateContent({
-            // FIX: Use gemini-2.5-pro for advanced planning
-            model: 'gemini-2.5-pro',
-            contents: plannerContent,
-            config: { systemInstruction: plannerSystemInstruction, temperature: 0.2 }
+- Your output MUST be ONLY the text of the plan, nothing else. Be concise but thorough.`
+        : `You are a senior game developer planning a task. Analyze the user's request and the project context. Your output MUST be ONLY the text of your step-by-step plan. Do not write any other text. Be concise but clear. This plan will be given to another AI to execute.`;
+    
+    const plannerUserMessageParts: Part[] = [{ text: `Analyze the user request and project history to create a detailed implementation plan.` }, { text: `USER REQUEST & CONTEXT: ${finalPrompt}` }];
+    if (image) {
+        plannerUserMessageParts.unshift({
+            inlineData: { mimeType: image.mimeType, data: image.data },
         });
-        const plan = plannerResponse.text;
-        onProgress?.({ stage: 'planner_end', content: `Planner agent finished. Blueprint created. Handing off to Coder agent...` });
+    }
+    const plannerContent = [...apiHistory, { role: 'user', parts: plannerUserMessageParts }];
 
-        // --- 2. Coder Step ---
-        onProgress?.({ stage: 'coder_start', content: `Coder agent online. Implementing blueprint...` });
-        const coderPrompt = `Current project files are:
+    const plannerStream = await ai.models.generateContentStream({
+        model: 'gemini-2.5-pro',
+        contents: plannerContent,
+        config: { systemInstruction: plannerSystemInstruction, temperature: 0.2 }
+    });
+
+    let plan = '';
+    onProgress?.({ stage: 'planner_stream_start', content: "Planning:\n" });
+    for await (const chunk of plannerStream) {
+        const chunkText = chunk.text;
+        if (chunkText) {
+            plan += chunkText;
+            onProgress?.({ stage: 'planner_stream', content: chunkText });
+        }
+    }
+
+    onProgress?.({ stage: 'planner_end', content: `Plan complete. Briefing Coder agent...` });
+
+    // --- 2. Coder Step ---
+    onProgress?.({ stage: 'coder_start', content: `Implementing plan...` });
+    
+    // Set up simulated progress updates during the non-streaming coder step
+    const coderProgressTimers: number[] = [];
+    coderProgressTimers.push(
+        window.setTimeout(() => {
+            onProgress?.({ stage: 'coder_progress', content: 'Researching solutions & sourcing assets...' });
+        }, 2500)
+    );
+    coderProgressTimers.push(
+        window.setTimeout(() => {
+            onProgress?.({ stage: 'coder_progress', content: 'Writing code and finalizing changes...' });
+        }, 6000)
+    );
+
+    const coderPrompt = `Current project files are:
 \\\`\\\`\\\`json
 ${JSON.stringify(workspace.files, null, 2)}
 \\\`\\\`\\\`
@@ -620,43 +646,22 @@ Now, follow this plan precisely. Your response must be the final JSON object con
 - After the plan, add your own implementation notes under a "[CODER'S LOG]" header, detailing how you followed the plan and earned CORE points.
 - If the plan requires assets, you MUST use your search tool to find them.`;
 
-        const coderResponse = await ai.models.generateContent({
-            // FIX: Use gemini-2.5-flash for coding execution
-            model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text: coderPrompt }] }],
-            config: {
-                systemInstruction: systemInstruction,
-                tools: [{ googleSearch: {} }],
-                temperature: 0.1,
-            }
-        });
-        onProgress?.({ stage: 'coder_end', content: `Coder agent finished. Finalizing changes...` });
-
-        return coderResponse;
-    }
-
-    // --- STANDARD MODE: Default single-step process ---
-    const currentMessageParts: Part[] = [{ text: finalPrompt }];
-    if (image) {
-        currentMessageParts.unshift({
-            inlineData: { mimeType: image.mimeType, data: image.data, },
-        });
-    }
-    
-    const fullContent = [...apiHistory, { role: 'user', parts: currentMessageParts }];
-
-    const response = await ai.models.generateContent({
+    const coderResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: fullContent,
+        contents: [{ role: 'user', parts: [{ text: coderPrompt }] }],
         config: {
             systemInstruction: systemInstruction,
             tools: [{ googleSearch: {} }],
             temperature: 0.1,
-            topP: 0.9,
         }
     });
     
-    return response;
+    // Clear any pending simulated progress timers
+    coderProgressTimers.forEach(clearTimeout);
+
+    onProgress?.({ stage: 'coder_end', content: `Finalizing changes...` });
+
+    return coderResponse;
 };
 
 export const generateInGameText = async (prompt: string, apiKey: string): Promise<string> => {

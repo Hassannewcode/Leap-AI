@@ -30,7 +30,7 @@ const App: React.FC = () => {
     const [isCreatingAsset, setIsCreatingAsset] = useState<boolean>(false);
     const [loadingMode, setLoadingMode] = useState<AiMode | null>(null);
     const [isInitialized, setIsInitialized] = useState<boolean>(false);
-    const [aiProgress, setAiProgress] = useState<string[]>([]);
+    const [aiProgress, setAiProgress] = useState<string>('');
     const [appStatusMessage, setAppStatusMessage] = useState<string | null>(null);
     const [workspaceToDeleteId, setWorkspaceToDeleteId] = useState<string | null>(null);
     const isOnline = useOnlineStatus();
@@ -129,7 +129,7 @@ const App: React.FC = () => {
         
         setIsLoading(true);
         setLoadingMode(mode);
-        setAiProgress([]);
+        setAiProgress(''); // Clear progress on new request
         
         const userMessage: UserChatMessage = {
             id: generateId(),
@@ -149,7 +149,11 @@ const App: React.FC = () => {
         try {
             const onProgress = (update: { stage: string; content?: string }) => {
                 if (update.content) {
-                    setAiProgress(prev => [...prev, update.content]);
+                    if (update.stage === 'planner_stream') {
+                        setAiProgress(prev => prev + update.content);
+                    } else {
+                        setAiProgress(update.content);
+                    }
                 }
             };
 

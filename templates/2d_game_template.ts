@@ -299,8 +299,7 @@ Engine.scene.define('main', {
     }
 });
 
-// Load the start scene to begin with the menu
-Engine.scene.load('start');
+// The game will now wait for the first user interaction (click or keypress) to load the 'start' scene.
 `;
 
     return [
