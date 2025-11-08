@@ -73,42 +73,6 @@ This document specifies the mandatory workflow, analysis techniques, and operati
 - **Embedded Code:** If an image requires code within it, do it as well.
 `;
 
-const geminiFormattingToolkit = `
-## 🚀 The Definitive Formatting Toolkit: The Absolute Exhaustive List (30 Elements)
-
-| Count | Category | Element/Syntax | Granular Usage Rule |
-| :---: | :--- | :--- | :--- |
-| **1** | 📝 CommonMark | Hierarchy (L2) \`## Text\` | Used for major section headings; always starts a new primary topic and is often preceded by a \`---\`. |
-| **2** | 📝 CommonMark | Hierarchy (L3) \`### Text\` | Used for sub-section headings; categorizes or divides content under a Level 2 heading. |
-| **3** | 📝 CommonMark | Emphasis (Strong) \`**text**\` | Used for crucial keywords, commands, or core concepts; applies only to high-priority terms. |
-| **4** | 📝 CommonMark | Emphasis (Mild) \`*text*\` | Used for titles, foreign words, or soft emphasis; used where subtle visual distinction is required. |
-| **5** | 📝 CommonMark | Unordered Lists \`* item\` or \`- item\` | Used for non-sequential items or simple lists; asterisk (\`*\`) and hyphen (\`-\`) are interchangeable. |
-| **6** | 📝 CommonMark | Ordered Lists \`1. item\` | Used for sequential steps, ranks, or procedures; numbers must be sequential (e.g., 1, 2, 3...). |
-| **7** | 📝 CommonMark | Block Quotes \`> text\` | Used to offset notes, rules, or direct quotations; applies a distinct background/border style. |
-| **8** | 📝 CommonMark | Thematic Break \`---\` | A visual divider; used exclusively to separate large, distinct sections of the response. |
-| **9** | 📝 CommonMark | Inline Code \`\`\`code\`\`\` | Used for single-line references to variables, functions, paths, or literal syntax; encased in backticks. |
-| **10**| 📝 CommonMark | Code Block (Fenced) \`\`\`\`lang code\`\`\`\` | Used for multi-line code or output; requires a language identifier for UI syntax highlighting. |
-| **11**| 📝 CommonMark | Tables (using \`|\`, \`-\`, and \`:\`) | Used to organize and compare data in a grid/matrix format for quick reference; requires a header row, separator row, and can specify alignment. |
-| **12**| ➗ LaTeX | Inline Math \`\\$formula\\$\` | Used for short formulas, variables, or symbols within a line of text; must only contain valid LaTeX commands/syntax. |
-| **13**| ➗ LaTeX | Display Math \`\\$\\$formula\\$\\$\` | Used for complex, standalone equations (e.g., matrices, integrals); must occupy its own line. |
-| **14**| ➗ LaTeX | Environments \`\\begin{...}...\\end{...}\` | Used within Display Math to structure complex layouts (e.g., pmatrix, align\\*); follows strict LaTeX grammar. |
-| **15**| ✨ Unicode | Standard Prose | All unformatted text: sentences, paragraphs, and conversational elements; the default output mode. |
-| **16**| ✨ Unicode | Punctuation | All standard marks: periods, commas, parentheses, etc.; used according to standard English grammar rules. |
-| **17**| ✨ Unicode | Emojis | Standard graphical Unicode symbols; used to add tone, visual interest, or act as simple bullet replacements. |
-| **18**| ✨ Unicode | Special Symbols | All other standard Unicode characters (arrows, currency, fractions); used for accurate representation of symbols. |
-| **19**| 🧩 Hybrid | Bolding within Lists \`* **text**\` | Used to highlight the most critical part of a bullet point; rule: never bold an entire bullet point. |
-| **20**| 🧩 Hybrid | Heading Emoji Prepend \`## 💡 Text\` | A contextually relevant emoji prepended to a Level 2 or Level 3 heading; used for tone/visual interest. |
-| **21**| 🧩 Hybrid | Combined Inline Code/Math \`\`\`\\$formula\\$\`\`\` | Inline code is used to quote a LaTeX expression (e.g., for syntax discussion); refers to the code itself. |
-| **22**| 🧩 Hybrid | Blockquote as Note/Tip \`> **Note:** text\` | A blockquote used specifically to deliver a warning/note/tip; the identifier (Note:) must be bolded. |
-| **23**| 🧱 Structural | Section Flow Rule \`## -> ###\` | A \`###\` can only follow a \`##\`, and a new \`##\` must follow a \`---\`; never skip heading levels. |
-| **24**| 🧱 Structural | Whitespace Separation (Post-Heading) | Every Markdown heading must be followed by exactly one blank line before the next text/element. |
-| **25**| 🧱 Structural | List/Paragraph Separation | Lists must be preceded and followed by a blank line when appearing between paragraphs or other block elements. |
-| **26**| 🧱 Structural | Horizontal Rule Placement | The \`---\` divider must be used exclusively to separate distinct, high-level sections (typically before a \`##\`). |
-| **27**| 📝 Style | Voice/Tense Standard | The active voice is always preferred for a direct and dynamic tone, except when the object is more important than the actor. |
-| **28**| 📝 Style | Contraction Use | Contractions (e.g., 'don\\'t', 'it\\'s') are used routinely to maintain a natural, conversational, and engaging tone. |
-| **29**| 📝 Style | Jargon/Clarity Check | Jargon is only used when the user\\'s context is technical; otherwise, simple, straightforward language is prioritized. |
-| **30**| 📝 Style | Next Step Conclusion | Full responses must conclude with a single, high-value, and well-focused next step or concluding question. |
-`;
 
 // REVISED: The base system instruction has been simplified to focus on a pure JavaScript engine.
 // All mentions of polyglot runtimes, C#, C++, shaders, and other simulated concepts have been removed.
@@ -208,21 +172,7 @@ While your primary function is to build games, you are also a collaborative part
     - The "assetsUsed" array should be empty.
 - **Goal:** Acknowledge their message, briefly reiterate your purpose (e.g., "I'm here to help you build an amazing game!"), and proactively ask a question to guide them back to a creative task (e.g., "What kind of game are you thinking of creating today?", "Do you have an idea for a feature we can add to the current project?").
 
-**11. INTERNAL DIRECTIVE: VISUAL EDITOR UPDATES**
-A prompt starting with \\\`[LEAP_AI_VISUAL_EDIT]\\\` is a non-creative, high-priority directive from the IDE's visual editor.
-- **Task:** You MUST locate the creation code for the specified game object.
-- **Action:** You MUST update ONLY the properties provided in the prompt. Do not add, remove, or modify any other properties or code.
-- **Constraint:** This is a mechanical task. Do NOT apply any creative interpretation, refactoring, or "game juice".
-- **Response:** Your "thinking" log should be minimal, stating only the object and properties you are updating. Your "explanation" must be a concise confirmation, e.g., "Updated player position."
-- **CRITICAL:** Failure to follow these constraints will break the visual editor's functionality. Your response must be fast, precise, and contain only the necessary changes.
-
-**12. COMMUNICATION & FORMATTING PROTOCOL: The Definitive Formatting Toolkit**
-All user-facing text you generate for the "explanation" field of your JSON response MUST strictly adhere to the following 30 formatting and style rules. This is your bible for communication. It ensures clarity, professionalism, and a consistent, high-quality user experience. The user's app is equipped with a renderer for CommonMark, LaTeX, and Unicode, so you must use these formats as specified.
-<DEFINITIVE_FORMATTING_TOOLKIT>
-${geminiFormattingToolkit}
-</DEFINITIVE_FORMATTING_TOOLKIT>
-
-**13. ULTRA-CRITICAL FINAL MANDATE: JSON OUTPUT PROTOCOL**
+**11. ULTRA-CRITICAL FINAL MANDATE: JSON OUTPUT PROTOCOL**
 Your entire output MUST be a single, raw JSON object. Do not include any other text, markdown, or formatting before or after the JSON. **THERE IS NO ROOM FOR ERROR. A SINGLE MISTAKE IN JSON SYNTAX, ESPECIALLY IN STRING ESCAPING, WILL CAUSE A CATASTROPHIC SYSTEM FAILURE. DOUBLE-CHECK AND TRIPLE-CHECK YOUR OUTPUT. DO NOT INCLUDE ANY EXPLANATORY TEXT, MARKDOWN, OR ANY CHARACTER WHATSOEVER BEFORE THE OPENING \\\`{\\\` OR AFTER THE CLOSING \\\`}\\\`.**
 
 Schema:
@@ -299,6 +249,7 @@ const getInitialFilesTemplate = (workspaceType: WorkspaceType): FileEntry[] => {
 
     const mainJs3D = `
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // --- Scene Definitions ---
 
@@ -320,15 +271,18 @@ Engine.scene.define('main', {
     onEnter: () => {
         Engine.getScene().background = new THREE.Color(0x87CEEB);
 
-        // Ground plane
-        Engine.create.mesh({
-            name: 'ground',
-            geometry: 'plane',
-            material: 'standard',
-            color: 0x228B22,
-            position: [0, 0, 0],
-            scale: [50, 50, 50],
-        }).rotation.x = -Math.PI / 2;
+        // Load the environment model
+        const loader = new GLTFLoader();
+        loader.load('assets/island.gltf', (gltf) => {
+            const island = gltf.scene;
+            island.name = 'island-environment';
+            island.position.set(0, -5, 0);
+            island.scale.set(0.5, 0.5, 0.5);
+            Engine.getScene().add(island);
+            console.log("Island environment loaded.");
+        }, undefined, (error) => {
+            console.error('An error happened while loading the island model:', error);
+        });
 
         // Player character cone
         const player = Engine.create.mesh({
@@ -336,7 +290,7 @@ Engine.scene.define('main', {
             geometry: 'cone',
             material: 'standard',
             color: 0xffff00,
-            position: [0, 0.75, 0],
+            position: [0, -3, 0],
             scale: [0.5, 1.5, 0.5]
         });
         Engine.setData('player', player);
@@ -347,12 +301,12 @@ Engine.scene.define('main', {
             geometry: 'icosahedron',
             material: 'standard',
             color: 0xAF8FEA,
-            position: [-5, 1.5, -5],
+            position: [-5, -2, -5],
             properties: { roughness: 0.2, metalness: 0.1 }
         });
         Engine.setData('spinningCrystal', spinningCrystal);
 
-        Engine.tween.create(spinningCrystal.position, { y: 2.5 }, {
+        Engine.tween.create(spinningCrystal.position, { y: -1 }, {
             duration: 2000,
             ease: 'easeInOut',
             yoyo: true,
@@ -389,7 +343,8 @@ Engine.scene.define('main', {
 // The game will now wait for the first user interaction to load the 'start' scene.
 `;
     
-    const threeImportMap = `"three": "https://esm.sh/three@0.166.1"`;
+    const threeImportMap = `"three": "https://esm.sh/three@0.166.1",
+            "three/addons/": "https://esm.sh/three@0.166.1/examples/jsm/"`;
 
     const indexHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -435,7 +390,8 @@ audio {
         { path: 'index.html', content: indexHtml },
         { path: 'scripts/main.js', content: mainJs3D.trim() },
         { path: 'style.css', content: styleCss.trim() },
-        { path: 'notes.txt', content: 'This 3D project is set up with a pure JavaScript architecture. All game logic is handled in `scripts/main.js`.' },
+        { path: 'assets/island.gltf', content: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/floating-island/model.gltf' },
+        { path: 'notes.txt', content: 'This 3D project is set up with a pure JavaScript architecture. It loads a low-poly island model as the environment. All game logic is handled in `scripts/main.js`.' },
     ];
 };
 
@@ -445,7 +401,7 @@ export const getInitialWorkspaceData = (workspaceType: WorkspaceType): { initial
     
     const welcomeMessage = workspaceType === '2D'
       ? "Welcome! I've set up a 2D shooter with a pure JavaScript architecture. Use WASD/Arrows to move and Space to shoot. All the game logic is in `scripts/main.js`. How should we evolve this?"
-      : "I've set up a new 3D project with a pure JavaScript file structure. Player logic is handled directly in `scripts/main.js`. Let's build something amazing! What's our first feature?";
+      : "I've set up a new 3D project featuring a low-poly floating island! The environment model is loaded in `scripts/main.js`. Let's build on this! What should we add first?";
 
     const updatedFilePaths = initialFiles.map(file => file.path);
 
@@ -454,11 +410,13 @@ export const getInitialWorkspaceData = (workspaceType: WorkspaceType): { initial
         { url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b24f6057a.mp3?filename=laser-gun-shot-31835.mp3", source: "Pixabay" },
         { url: "https://cdn.pixabay.com/download/audio/2021/08/04/audio_16cc3b601f.mp3?filename=explosion-6055.mp3", source: "Pixabay" },
         { url: "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c370e72c84.mp3?filename=videogame-death-sound-43894.mp3", source: "Pixabay" },
-    ] : [];
+    ] : [
+        { url: "https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/floating-island/model.gltf", source: "PMNDRS Market" }
+    ];
 
     const thinkingMessage = workspaceType === '2D'
         ? "Initialized a robust 2D project with a pure JavaScript, scene-based architecture. All game logic, including player controls, shooting, obstacle spawning, collisions, and scoring, is contained within `scripts/main.js`."
-        : "Initialized the 3D project with a straightforward, scene-based JavaScript structure. Player logic and scene setup are both handled by `scripts/main.js` for clarity and simplicity.";
+        : "Set up the 3D project with a low-poly floating island environment. The GLTF model is loaded asynchronously in `scripts/main.js`, replacing the basic ground plane. Player and other objects have been repositioned to fit the new scene.";
 
     const initialFullResponse = JSON.stringify({
         thinking: thinkingMessage,

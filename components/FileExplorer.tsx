@@ -1,20 +1,16 @@
 
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { FileEntry, WorkspaceType } from '../types';
+import { FileEntry } from '../types';
 import FileIcon from './icons/FileIcon';
 import FolderIcon from './icons/FolderIcon';
 import FolderOpenIcon from './icons/FolderOpenIcon';
 import CodeIcon from './icons/CodeIcon';
-import GridIcon from './icons/GridIcon';
-import CubeIcon from './icons/CubeIcon';
 
 interface FileExplorerProps {
     files: FileEntry[];
     activePath: string;
     onSelect: (path: string) => void;
-    workspaceName: string;
-    workspaceType: WorkspaceType;
 }
 
 interface TreeNode {
@@ -129,7 +125,7 @@ const Node: React.FC<{ node: TreeNode; level: number; activePath: string; onSele
     );
 };
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ files, activePath, onSelect, workspaceName, workspaceType }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ files, activePath, onSelect }) => {
     const fileTree = useMemo(() => buildFileTree(files), [files]);
     
     const [openFolders, setOpenFolders] = useState<Set<string>>(() => {
@@ -175,22 +171,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, activePath, onSelect
 
     return (
         <div className="p-2 h-full flex flex-col">
-            <header className="px-2 mb-2 flex-shrink-0">
-                 <h2 className="text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">Explorer</h2>
-                <div className="flex items-center gap-2.5 p-2 rounded-md bg-black/30">
-                    {workspaceType === '2D' ? (
-                        <GridIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    ) : (
-                        <CubeIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    )}
-                    <div className="flex-grow overflow-hidden">
-                        <p className="text-sm font-medium text-gray-200 truncate" title={workspaceName}>
-                            {workspaceName}
-                        </p>
-                        <p className="text-xs text-gray-500">{workspaceType} Project</p>
-                    </div>
-                </div>
-            </header>
             <nav className="flex-grow overflow-y-auto mt-2">
                 <ul>
                     {fileTree.map(node => (

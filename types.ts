@@ -13,7 +13,7 @@ export interface GroundingSource {
 }
 
 export interface AssetInfo {
-    url:string;
+    url: string;
     source: string;
 }
 
@@ -67,15 +67,35 @@ export interface LogEntry {
     message: string;
 }
 
-export type SelectedObject = {
+export interface SceneObject {
     id: string;
     name: string;
+    type: string; // e.g. 'Sprite', 'UIText', 'Mesh'
+}
+
+export interface SelectedObject2D {
+    id: string;
+    name: string;
+    type: '2D';
     x: number;
     y: number;
     width: number;
     height: number;
-    rotation: number;
-} | null;
+    rotation: number; // in radians
+    alpha: number;
+}
+
+export interface SelectedObject3D {
+    id: string;
+    name: string;
+    type: '3D';
+    position: { x: number; y: number; z: number };
+    scale: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number }; // Euler angles in radians
+}
+
+export type SelectedObject = SelectedObject2D | SelectedObject3D | null;
+
 
 export interface DebuggerIncident {
     id: string;

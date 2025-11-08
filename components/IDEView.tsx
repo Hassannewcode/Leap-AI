@@ -2,10 +2,9 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import AIIcon from './icons/AIIcon';
-import PlayIcon from './icons/PlayIcon';
 import GamePreview from './GamePreview';
 import ChatPanel from './ChatPanel';
-import { Workspace, LogEntry, SelectedObject, AiMode, AssetInfo, DebuggerIncident } from '../types';
+import { Workspace, LogEntry, SelectedObject, AiMode, AssetInfo, DebuggerIncident, SceneObject } from '../types';
 import RefreshIcon from './icons/RefreshIcon';
 import FullscreenIcon from './icons/FullscreenIcon';
 import DownloadIcon from './icons/DownloadIcon';
@@ -32,6 +31,10 @@ import RedoIcon from './icons/RedoIcon';
 import ApiKeyModal from './ApiKeyModal';
 import { generateInGameText } from '../services/geminiService';
 import UploadCloudIcon from './icons/UploadCloudIcon';
+import SceneHierarchy from './SceneHierarchy';
+import InspectorPanel from './InspectorPanel';
+import FolderIcon from './icons/FolderIcon';
+import ListTreeIcon from './icons/ListTreeIcon';
 
 
 declare global {
@@ -79,6 +82,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
     const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true);
     const [activeBottomTab, setActiveBottomTab] = useState<'console' | 'debugger'>('console');
+    const [activeLeftTab, setActiveLeftTab] = useState<'explorer' | 'scene'>('explorer');
     const [refreshKey, setRefreshKey] = useState(0);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     
@@ -97,6 +101,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const nameInputRef = useRef<HTMLInputElement>(null);
     
     const [isVisualEditMode, setIsVisualEditMode] = useState(false);
+    const [sceneObjects, setSceneObjects] = useState<SceneObject[]>([]);
     const [selectedObject, setSelectedObject] = useState<SelectedObject>(null);
     const [isAssetLibraryOpen, setIsAssetLibraryOpen] = useState(false);
     
@@ -137,10 +142,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         return file || activeWorkspace.files.find(f => f.path === 'scripts/main.js') || activeWorkspace.files.find(f => f.path === 'index.html') || activeWorkspace.files[0];
     }, [activePath, activeWorkspace.files]);
     
-    // FIX: Use a ref to hold the active file to prevent stale closures in the
-    // CodeMirror onChange event handler. This ensures that when the user switches
-    // files, the editor's change event (triggered by setValue) doesn't accidentally
-    // save the new content into the old file path due to a stale closure.
     const activeFileRef = useRef(activeFile);
     useEffect(() => {
         activeFileRef.current = activeFile;
@@ -169,24 +170,12 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         }
     }, [activeWorkspace.files, activePath]);
     
-    const handleVisualObjectUpdate = useCallback((name: string, updates: Record<string, any>) => {
-        if (isLoading) return;
-
-        // Sanitize and format the updates for the prompt.
-        const formattedUpdates = Object.entries(updates)
-            .map(([key, value]) => {
-                if (typeof value === 'number') {
-                    // Round to 2 decimal places to avoid float precision issues in code
-                    return `${key}: ${parseFloat(value.toFixed(2))}`;
-                }
-                return `${key}: ${JSON.stringify(value)}`;
-            })
-            .join(', ');
-
-        const prompt = `[LEAP_AI_VISUAL_EDIT] Update the game object named "${name}". Set its properties to: ${formattedUpdates}. Make no other changes.`;
-        
-        onGenerate(prompt, null, 'standard');
-    }, [onGenerate, isLoading]);
+    const sendToIframe = useCallback((type: string, payload: any) => {
+        const iframe = previewContainerRef.current?.querySelector('iframe');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type, payload }, '*');
+        }
+    }, []);
 
     // Main message bus listener for iframe communication
     useEffect(() => {
@@ -202,13 +191,15 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                     }
                     break;
                 case 'visual-editor-select':
+                    setSelectedObject(payload || null);
                     if (payload) {
-                        setSelectedObject(payload);
+                        // Switch to scene tab when an object is selected
+                        setActiveLeftTab('scene');
                     }
                     break;
-                case 'visual-editor-update-object':
-                     if (payload && payload.name && payload.updates) {
-                        handleVisualObjectUpdate(payload.name, payload.updates);
+                case 'scene-graph-update':
+                    if (payload && Array.isArray(payload)) {
+                        setSceneObjects(payload);
                     }
                     break;
                 case 'debugger-incident':
@@ -231,7 +222,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [isBottomPanelVisible, userApiKey, handleVisualObjectUpdate]); // Rerun if userApiKey changes
+    }, [isBottomPanelVisible, userApiKey]); // Rerun if userApiKey changes
 
     // Keyboard shortcuts for undo/redo
     useEffect(() => {
@@ -283,13 +274,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             editorRef.current = editor;
 
             editor.on('change', (instance: any, changeObj: any) => {
-                // FIX: Check the origin of the change. We only want to save updates
-                // that come from user input ('+input', 'paste', etc.), not from
-                // programmatic changes like `editor.setValue()`. This is the key
-                // to making the game preview persistent when switching between files,
-                // as it prevents the iframe from reloading unnecessarily.
                 if (changeObj.origin !== 'setValue') {
-                    // Use the ref to get the most up-to-date active file.
                     const currentFile = activeFileRef.current;
                     const currentValue = instance.getValue();
                     if (currentFile && currentValue !== currentFile.content) {
@@ -301,7 +286,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         
         return () => {
             if (editorRef.current && typeof editorRef.current.toTextArea === 'function') {
-                // This is CodeMirror's internal cleanup method
                 editorRef.current.toTextArea();
                 editorRef.current = null;
             }
@@ -314,7 +298,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             const editor = editorRef.current;
             const currentVal = editor.getValue();
             
-            // Set language mode based on file extension
             const extension = activeFile.path.split('.').pop()?.toLowerCase() || 'txt';
             const modeMap: { [key: string]: string | { name: string; jsx?: boolean; typescript?: boolean; } } = {
                 js: 'javascript',
@@ -329,7 +312,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             const newMode = modeMap[extension] || 'text/plain';
             editor.setOption('mode', newMode);
             
-            // Only set value if it's different to prevent cursor jumps and change event loops
             if (currentVal !== activeFile.content) {
                 editor.setValue(activeFile.content || '');
             }
@@ -363,7 +345,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             const files = Array.from(e.dataTransfer.files);
             onUploadLocalAssets(files);
-            // Prevent the browser from opening the file
             e.dataTransfer.clearData();
         }
     }, [onUploadLocalAssets]);
@@ -396,7 +377,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
 
     const handleQuarantineIncident = useCallback((incident: DebuggerIncident) => {
         setQuarantineRequest(incident);
-        // Also remove it from the list after quarantine is requested
         setTimeout(() => handleAllowIncident(incident.id), 300);
     }, [handleAllowIncident]);
 
@@ -422,16 +402,8 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         const contextString = JSON.stringify(cleanContext, null, 2);
         const fixPrompt = `[LEAP_AI_FIX_REQUEST] The LeapGuard Autonomous Runtime Analysis System reported the following incident. Please analyze the code and fix the root cause.\n\nThreat Level: ${incident.threatLevel}\nSuspect: ${incident.suspect}\nMessage: ${incident.message}\nEvidence: ${contextString}\nStack Trace:\n${incident.evidence.stack}`;
         onGenerate(fixPrompt, null, 'standard');
-        // Also remove it from the list after the fix is requested
         setTimeout(() => handleAllowIncident(incident.id), 300);
     }, [onGenerate, isLoading, handleAllowIncident]);
-
-    const sendToIframe = useCallback((type: string, payload: any) => {
-        const iframe = previewContainerRef.current?.querySelector('iframe');
-        if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage({ type, payload }, '*');
-        }
-    }, []);
 
     const handleInGameAiRequest = useCallback(async (prompt: string, requestId: string) => {
         if (!userApiKey) {
@@ -476,7 +448,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     }, [isEditingName]);
     
     useEffect(() => {
-        // When visual edit mode is turned off, deselect any object
         if (!isVisualEditMode) {
             setSelectedObject(null);
         }
@@ -554,6 +525,30 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         setIsBottomPanelVisible(true);
         setActiveBottomTab('debugger');
     };
+    
+    const handleUpdateObjectProperty = useCallback((id: string, propertyPath: string, value: any) => {
+        setSelectedObject(prev => {
+            if (!prev || prev.id !== id) return prev;
+    
+            // Deep copy to avoid mutation issues
+            const newObj = JSON.parse(JSON.stringify(prev));
+    
+            const keys = propertyPath.split('.');
+            let current = newObj;
+            for (let i = 0; i < keys.length - 1; i++) {
+                current = current[keys[i]];
+                if (typeof current === 'undefined') return prev; // Path doesn't exist
+            }
+            current[keys[keys.length - 1]] = value;
+            return newObj;
+        });
+        
+        sendToIframe('visual-editor-update-property', { id, propertyPath, value });
+    }, [sendToIframe]);
+    
+    const handleSelectObjectFromHierarchy = useCallback((id: string) => {
+        sendToIframe('visual-editor-force-select', { id });
+    }, [sendToIframe]);
 
     return (
         <div className="flex h-screen w-screen bg-black text-gray-300 font-sans">
@@ -568,7 +563,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                         onRetry={onRetry}
                         onRestoreCheckpoint={onRestoreCheckpoint}
                         selectedObject={selectedObject}
-                        onDeselectObject={() => setSelectedObject(null)}
+                        onDeselectObject={() => sendToIframe('visual-editor-force-select', { id: null })}
                      />
                 </div>
             )}
@@ -622,14 +617,40 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                             <ResizablePanelGroup direction="horizontal">
                                 {isCodePanelVisible && (
                                     <Panel id="code" defaultSize={40} className="min-w-[300px] flex flex-row">
-                                        <div className="w-60 bg-[#0d0d0d] border-r border-gray-800/70 h-full">
-                                          <FileExplorer
-                                              files={activeWorkspace.files}
-                                              activePath={activeFile?.path || ''}
-                                              onSelect={setActivePath}
-                                              workspaceName={activeWorkspace.name}
-                                              workspaceType={activeWorkspace.type}
-                                          />
+                                        <div className="w-64 bg-[#0d0d0d] border-r border-gray-800/70 h-full flex flex-col">
+                                            <div className="flex-shrink-0 flex items-center border-b border-gray-800/70">
+                                                <button onClick={() => setActiveLeftTab('explorer')} className={`flex-1 flex items-center justify-center gap-2 p-2 text-sm font-medium transition-colors ${activeLeftTab === 'explorer' ? 'bg-black/20 text-blue-300' : 'text-gray-500 hover:bg-white/5 hover:text-gray-200'}`}><FolderIcon className="w-4 h-4" /> Explorer</button>
+                                                <button onClick={() => setActiveLeftTab('scene')} className={`flex-1 flex items-center justify-center gap-2 p-2 text-sm font-medium transition-colors ${activeLeftTab === 'scene' ? 'bg-black/20 text-blue-300' : 'text-gray-500 hover:bg-white/5 hover:text-gray-200'}`}><ListTreeIcon className="w-4 h-4" /> Scene</button>
+                                            </div>
+                                            <div className="flex-grow overflow-y-auto">
+                                                 {activeLeftTab === 'explorer' && (
+                                                    <FileExplorer
+                                                        files={activeWorkspace.files}
+                                                        activePath={activeFile?.path || ''}
+                                                        onSelect={setActivePath}
+                                                    />
+                                                 )}
+                                                 {activeLeftTab === 'scene' && (
+                                                    <div className="h-full flex flex-col">
+                                                        <div className="flex-grow overflow-y-auto">
+                                                            <SceneHierarchy
+                                                                objects={sceneObjects}
+                                                                selectedId={selectedObject?.id || null}
+                                                                onSelect={handleSelectObjectFromHierarchy}
+                                                            />
+                                                        </div>
+                                                        {selectedObject && (
+                                                            <div className="flex-shrink-0 border-t border-gray-800/70">
+                                                                <InspectorPanel
+                                                                    key={selectedObject.id}
+                                                                    selectedObject={selectedObject}
+                                                                    onUpdate={handleUpdateObjectProperty}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                 )}
+                                            </div>
                                         </div>
                                         <div 
                                             ref={editorContainerRef} 
@@ -639,7 +660,6 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                                             onDragOver={handleDragOver}
                                             onDrop={handleDrop}
                                         >
-                                            {/* CodeMirror will attach here */}
                                             {isDraggingOver && (
                                                 <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-400 rounded-lg flex flex-col items-center justify-center pointer-events-none z-10">
                                                     <UploadCloudIcon className="w-12 h-12 text-blue-300 mb-2" />
