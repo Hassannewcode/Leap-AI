@@ -1,4 +1,3 @@
-
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AccessibilityIssue, MetaIssue, FileEntry, DiagnosticData } from '../types';
 import { ActivityLogger } from '../lib/utils/activityLogger';
@@ -45,21 +44,21 @@ interface State {
 class ErrorBoundary extends Component<Props, State> {
     private ref = React.createRef<HTMLDivElement>();
 
-    constructor(props: Props) {
-        super(props);
-        this.state = {
-            hasError: false,
-            isRecovering: false,
-            recoveryLogs: [],
-            fixAttemptFailed: false,
-        };
-    }
+    // FIX: Initialize state as a class property and use arrow functions for methods
+    // to ensure `this` is always correctly bound, resolving issues where `this.state`
+    // and `this.setState` were reported as not existing on the component instance.
+    state: State = {
+        hasError: false,
+        isRecovering: false,
+        recoveryLogs: [],
+        fixAttemptFailed: false,
+    };
 
-    static getDerivedStateFromError(error: Error): Partial<State> {
+    static getDerivedStateFromError(_error: Error): Partial<State> {
         return { hasError: true };
     }
 
-    componentDidCatch = (error: Error, errorInfo: ErrorInfo) => {
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("LeapGuard captured an unhandled error:", error, errorInfo);
         
         const rawDiagnostics = this.gatherDiagnostics(error, errorInfo);

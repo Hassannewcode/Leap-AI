@@ -30,7 +30,7 @@ function createStateMachine(config) {
                     this._currentState.onEnter(this._target);
                 }
             } else {
-                console.error(\`FSM Error: State '\${newStateName}' not found.\`);
+                console.error('FSM Error: State \\'' + newStateName + '\\' not found.');
             }
         },
 

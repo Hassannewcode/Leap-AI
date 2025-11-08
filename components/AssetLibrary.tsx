@@ -14,7 +14,7 @@ interface AssetLibraryProps {
     activeWorkspaceType: WorkspaceType;
     usedAssets: AssetInfo[];
     localAssets: LocalAsset[];
-    onUpload: (file: File) => void;
+    onUpload: (files: File[]) => void;
     onCreate: (prompt: string) => void;
     isCreating: boolean;
     onClose: () => void;
@@ -114,7 +114,7 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ activeWorkspaceType, usedAs
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            onUpload(file);
+            onUpload([file]);
         }
         event.target.value = ''; // Reset input to allow re-uploading the same file
     };

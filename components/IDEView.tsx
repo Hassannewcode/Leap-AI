@@ -31,6 +31,7 @@ import UndoIcon from './icons/UndoIcon';
 import RedoIcon from './icons/RedoIcon';
 import ApiKeyModal from './ApiKeyModal';
 import { generateInGameText } from '../services/geminiService';
+import UploadCloudIcon from './icons/UploadCloudIcon';
 
 
 declare global {
@@ -54,7 +55,7 @@ interface IDEViewProps {
     onDeleteWorkspace: () => void;
     onReturnToLauncher: () => void;
     onUpdateFileContent: (path: string, content: string) => void;
-    onUploadLocalAsset: (file: File) => void;
+    onUploadLocalAssets: (files: File[]) => void;
     onCreateLocalAsset: (prompt: string) => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -73,7 +74,7 @@ interface PendingAiRequest {
     prompt: string;
 }
 
-const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, aiProgress, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAsset, onCreateLocalAsset, onUndo, onRedo, canUndo, canRedo }) => {
+const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatingAsset, loadingMode, aiProgress, isOnline, onGenerate, onPositiveFeedback, onRetry, onRestoreCheckpoint, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent, onUploadLocalAssets, onCreateLocalAsset, onUndo, onRedo, canUndo, canRedo }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isCodePanelVisible, setCodePanelVisible] = useState(true);
     const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true);
@@ -84,11 +85,12 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<any>(null); // To hold the CodeMirror instance
 
-    const [activePath, setActivePath] = useState('scripts/game.js');
+    const [activePath, setActivePath] = useState('scripts/main.js');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [incidents, setIncidents] = useState<DebuggerIncident[]>([]);
     const [quarantineRequest, setQuarantineRequest] = useState<DebuggerIncident | null>(null);
     const [confirmationRequest, setConfirmationRequest] = useState<ConfirmationRequest | null>(null);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     const [isEditingName, setIsEditingName] = useState(false);
     const [workspaceName, setWorkspaceName] = useState(activeWorkspace.name);
@@ -132,9 +134,18 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     const activeFile = useMemo(() => {
         const file = activeWorkspace.files.find(f => f.path === activePath);
         // Fallback to a common default or the first file if the active one isn't found
-        return file || activeWorkspace.files.find(f => f.path === 'scripts/game.js') || activeWorkspace.files.find(f => f.path === 'index.html') || activeWorkspace.files[0];
+        return file || activeWorkspace.files.find(f => f.path === 'scripts/main.js') || activeWorkspace.files.find(f => f.path === 'index.html') || activeWorkspace.files[0];
     }, [activePath, activeWorkspace.files]);
     
+    // FIX: Use a ref to hold the active file to prevent stale closures in the
+    // CodeMirror onChange event handler. This ensures that when the user switches
+    // files, the editor's change event (triggered by setValue) doesn't accidentally
+    // save the new content into the old file path due to a stale closure.
+    const activeFileRef = useRef(activeFile);
+    useEffect(() => {
+        activeFileRef.current = activeFile;
+    }, [activeFile]);
+
     const allUsedAssets = useMemo(() => {
         const assets: AssetInfo[] = [];
         const seenUrls = new Set<string>();
@@ -154,10 +165,29 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
     useEffect(() => {
         // Ensure activePath is valid, reset if not
         if (!activeWorkspace.files.some(f => f.path === activePath)) {
-            setActivePath(activeWorkspace.files.find(f => f.path === 'scripts/game.js')?.path || 'index.html');
+            setActivePath(activeWorkspace.files.find(f => f.path === 'scripts/main.js')?.path || 'index.html');
         }
     }, [activeWorkspace.files, activePath]);
     
+    const handleVisualObjectUpdate = useCallback((name: string, updates: Record<string, any>) => {
+        if (isLoading) return;
+
+        // Sanitize and format the updates for the prompt.
+        const formattedUpdates = Object.entries(updates)
+            .map(([key, value]) => {
+                if (typeof value === 'number') {
+                    // Round to 2 decimal places to avoid float precision issues in code
+                    return `${key}: ${parseFloat(value.toFixed(2))}`;
+                }
+                return `${key}: ${JSON.stringify(value)}`;
+            })
+            .join(', ');
+
+        const prompt = `[LEAP_AI_VISUAL_EDIT] Update the game object named "${name}". Set its properties to: ${formattedUpdates}. Make no other changes.`;
+        
+        onGenerate(prompt, null, 'standard');
+    }, [onGenerate, isLoading]);
+
     // Main message bus listener for iframe communication
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
@@ -174,6 +204,11 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                 case 'visual-editor-select':
                     if (payload) {
                         setSelectedObject(payload);
+                    }
+                    break;
+                case 'visual-editor-update-object':
+                     if (payload && payload.name && payload.updates) {
+                        handleVisualObjectUpdate(payload.name, payload.updates);
                     }
                     break;
                 case 'debugger-incident':
@@ -196,7 +231,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [isBottomPanelVisible, userApiKey]); // Rerun if userApiKey changes
+    }, [isBottomPanelVisible, userApiKey, handleVisualObjectUpdate]); // Rerun if userApiKey changes
 
     // Keyboard shortcuts for undo/redo
     useEffect(() => {
@@ -247,10 +282,19 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             });
             editorRef.current = editor;
 
-            editor.on('change', (instance: any) => {
-                const currentValue = instance.getValue();
-                if (currentValue !== activeFile?.content) {
-                    onUpdateFileContent(activeFile!.path, currentValue);
+            editor.on('change', (instance: any, changeObj: any) => {
+                // FIX: Check the origin of the change. We only want to save updates
+                // that come from user input ('+input', 'paste', etc.), not from
+                // programmatic changes like `editor.setValue()`. This is the key
+                // to making the game preview persistent when switching between files,
+                // as it prevents the iframe from reloading unnecessarily.
+                if (changeObj.origin !== 'setValue') {
+                    // Use the ref to get the most up-to-date active file.
+                    const currentFile = activeFileRef.current;
+                    const currentValue = instance.getValue();
+                    if (currentFile && currentValue !== currentFile.content) {
+                        onUpdateFileContent(currentFile.path, currentValue);
+                    }
                 }
             });
         }
@@ -271,8 +315,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
             const currentVal = editor.getValue();
             
             // Set language mode based on file extension
-            const extension = activeFile.path.split('.').pop() || 'txt';
-            // FIX: Corrected the type for the CodeMirror mode map to allow for 'typescript' and optional 'jsx' properties.
+            const extension = activeFile.path.split('.').pop()?.toLowerCase() || 'txt';
             const modeMap: { [key: string]: string | { name: string; jsx?: boolean; typescript?: boolean; } } = {
                 js: 'javascript',
                 jsx: { name: "javascript", jsx: true },
@@ -293,6 +336,38 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
         }
     }, [activeFile]);
     // --- End CodeMirror Setup ---
+
+    // --- Drag and Drop Handlers ---
+    const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const files = Array.from(e.dataTransfer.files);
+            onUploadLocalAssets(files);
+            // Prevent the browser from opening the file
+            e.dataTransfer.clearData();
+        }
+    }, [onUploadLocalAssets]);
+    // --- End Drag and Drop Handlers ---
 
     const handleClearConsole = useCallback(() => {
         setLogs([]);
@@ -548,10 +623,29 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                                 {isCodePanelVisible && (
                                     <Panel id="code" defaultSize={40} className="min-w-[300px] flex flex-row">
                                         <div className="w-60 bg-[#0d0d0d] border-r border-gray-800/70 h-full">
-                                          <FileExplorer files={activeWorkspace.files} activePath={activeFile?.path || ''} onSelect={setActivePath} />
+                                          <FileExplorer
+                                              files={activeWorkspace.files}
+                                              activePath={activeFile?.path || ''}
+                                              onSelect={setActivePath}
+                                              workspaceName={activeWorkspace.name}
+                                              workspaceType={activeWorkspace.type}
+                                          />
                                         </div>
-                                        <div ref={editorContainerRef} className="flex-1 h-full overflow-hidden bg-[#2b2b2b]">
+                                        <div 
+                                            ref={editorContainerRef} 
+                                            className="flex-1 h-full overflow-hidden bg-[#2b2b2b] relative"
+                                            onDragEnter={handleDragEnter}
+                                            onDragLeave={handleDragLeave}
+                                            onDragOver={handleDragOver}
+                                            onDrop={handleDrop}
+                                        >
                                             {/* CodeMirror will attach here */}
+                                            {isDraggingOver && (
+                                                <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-400 rounded-lg flex flex-col items-center justify-center pointer-events-none z-10">
+                                                    <UploadCloudIcon className="w-12 h-12 text-blue-300 mb-2" />
+                                                    <p className="text-lg font-semibold text-white">Drop files to upload</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </Panel>
                                 )}
@@ -625,9 +719,8 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, isCreatin
                     activeWorkspaceType={activeWorkspace.type}
                     usedAssets={allUsedAssets}
                     localAssets={activeWorkspace.localAssets ?? []}
-                    onUpload={onUploadLocalAsset}
+                    onUpload={(files) => onUploadLocalAssets(files)}
                     onCreate={onCreateLocalAsset}
-                    // FIX: Pass the correct 'isCreatingAsset' prop to the AssetLibrary component.
                     isCreating={isCreatingAsset}
                     onClose={() => setIsAssetLibraryOpen(false)}
                 />

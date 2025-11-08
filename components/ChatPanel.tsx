@@ -25,6 +25,48 @@ interface ChatPanelProps {
     onDeselectObject: () => void;
 }
 
+declare global {
+    interface Window {
+        marked: {
+            parse: (markdown: string, options?: any) => string;
+        };
+        DOMPurify: {
+            sanitize: (html: string) => string;
+        };
+        katex: any;
+        renderMathInElement: (element: HTMLElement, options?: any) => void;
+    }
+}
+
+const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (containerRef.current && content && window.marked && window.DOMPurify && window.renderMathInElement) {
+            const rawHtml = window.marked.parse(content, { gfm: true, breaks: true });
+            const sanitizedHtml = window.DOMPurify.sanitize(rawHtml);
+            containerRef.current.innerHTML = sanitizedHtml;
+            try {
+                window.renderMathInElement(containerRef.current, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                    ],
+                    throwOnError: false
+                });
+            } catch (error) {
+                console.warn('KaTeX rendering error:', error);
+            }
+        } else if (containerRef.current) {
+            // Fallback for when libraries aren't loaded yet
+            containerRef.current.textContent = content;
+        }
+    }, [content]);
+
+    return <div ref={containerRef} className="ai-content" />;
+};
+
+
 const UpdatedFilesBlock: React.FC<{ files: string[] }> = ({ files }) => {
     if (!files || files.length === 0) return null;
     
@@ -123,6 +165,33 @@ const AssetInfoBlock: React.FC<{ assets: AssetInfo[]; sources: GroundingSource[]
         </div>
     );
 };
+
+const SelectedObjectInspector: React.FC<{ selectedObject: SelectedObject; onDeselect: () => void; }> = ({ selectedObject, onDeselect }) => {
+    if (!selectedObject) return null;
+    
+    const { name, x, y, width, height, rotation } = selectedObject;
+
+    return (
+        <div className="absolute -top-1 left-0 w-full transform -translate-y-full p-2">
+            <div className="bg-blue-900/80 backdrop-blur-sm border border-blue-500/50 text-blue-200 p-3 rounded-lg shadow-lg">
+                <div className="flex justify-between items-center mb-2">
+                    <p className="text-sm font-bold">Selected: <span className="font-mono bg-blue-500/20 px-1.5 py-0.5 rounded">{name}</span></p>
+                    <button onClick={onDeselect} className="p-1 rounded-full hover:bg-white/20">
+                        <XIcon className="w-4 h-4"/>
+                    </button>
+                </div>
+                <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs font-mono">
+                    <span>X:</span><span className="col-span-2 text-white">{x.toFixed(2)}</span>
+                    <span>Y:</span><span className="col-span-2 text-white">{y.toFixed(2)}</span>
+                    <span>W:</span><span className="col-span-2 text-white">{width.toFixed(2)}</span>
+                    <span>H:</span><span className="col-span-2 text-white">{height.toFixed(2)}</span>
+                    <span>Rot:</span><span className="col-span-2 text-white">{(rotation * 180 / Math.PI).toFixed(1)}°</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const isModelMessage = (msg: ChatMessage): msg is ModelChatMessage => {
     return msg.role === 'model';
@@ -241,7 +310,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDel
                                     {isUserMessage(msg) && msg.image && (
                                         <img src={`data:${msg.image.mimeType};base64,${msg.image.data}`} alt="User upload" className="mb-2 rounded-lg max-w-full h-auto border border-white/10" />
                                     )}
-                                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                                    {isModelMessage(msg) ? (
+                                        <MarkdownRenderer content={msg.text} />
+                                    ) : (
+                                        <div className="whitespace-pre-wrap">{msg.text}</div>
+                                    )}
                                     
                                     {isModelMessage(msg) && msg.filesUpdated && (
                                         <UpdatedFilesBlock files={msg.filesUpdated} />
@@ -311,16 +384,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDel
                     </div>
                 </div>
                 <div className="relative">
-                    {selectedObject && (
-                        <div className="absolute -top-10 left-0 w-full flex justify-center">
-                            <div className="bg-blue-900/80 backdrop-blur-sm border border-blue-500/50 text-blue-200 px-3 py-1 rounded-full flex items-center gap-2 text-xs shadow-lg">
-                                <span>Currently selecting: <strong className="font-medium">{selectedObject.name}</strong></span>
-                                <button onClick={onDeselectObject} className="p-0.5 rounded-full hover:bg-white/20">
-                                    <XIcon className="w-3 h-3"/>
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                     <SelectedObjectInspector selectedObject={selectedObject} onDeselect={onDeselectObject} />
                      {uploadedImage && (
                         <div className="absolute bottom-full left-0 w-full mb-2 p-1.5 bg-gray-900 rounded-t-lg border-b border-gray-700/80">
                              <div className="flex items-center gap-2 bg-gray-800/70 p-1 rounded-md">

@@ -13,7 +13,7 @@ export interface GroundingSource {
 }
 
 export interface AssetInfo {
-    url: string;
+    url:string;
     source: string;
 }
 
@@ -70,6 +70,11 @@ export interface LogEntry {
 export type SelectedObject = {
     id: string;
     name: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
 } | null;
 
 export interface DebuggerIncident {

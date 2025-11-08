@@ -152,6 +152,9 @@ window.Engine = {
     input: {
         isPressed: (key) => keysPressed.has(key),
         isKeyJustPressed: (key) => keysJustPressed.has(key),
+        isMousePressed: () => isMousePressed,
+        isMouseJustClicked: () => isMouseJustClickedFlag,
+        wasAnyInputJustPressed: () => keysJustPressed.size > 0 || isMouseJustClickedFlag,
     },
     camera: {
         follow: (meshToFollow, offset = [0, 5, 10]) => {
@@ -192,17 +195,15 @@ if (window.LeapGuard && window.LeapGuard.instrument) {
     window.LeapGuard.init({
         healthCheck: () => {
             if (meshes.length > 300) {
-// FIX: Escaped template literal to prevent it from being evaluated in the outer scope.
-                 window.LeapGuard.reportIncident('trusted', 'Performance Check', \`High object count: \${meshes.length}. This may impact performance.\`);
+                 window.LeapGuard.reportIncident('trusted', 'Performance Check', 'High object count: ' + meshes.length + '. This may impact performance.');
             }
             for (const mesh of meshes) {
                 if (isNaN(mesh.position.x) || isNaN(mesh.position.y) || isNaN(mesh.position.z)) {
-// FIX: Escaped template literal to prevent it from being evaluated in the outer scope.
-                    window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', \`Mesh '\\\${mesh.name}' has NaN position.\`, { uuid: mesh.uuid, position: mesh.position.toArray() });
+                    window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', 'Mesh \\'' + mesh.name + '\\' has NaN position.', { uuid: mesh.uuid, position: mesh.position.toArray() });
                 }
                 const { x, y, z } = mesh.scale;
                 if (x <= 0 || y <= 0 || z <= 0 || x > 1000 || y > 1000 || z > 1000) {
-                     window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', \`Mesh '\\\${mesh.name}' has an extreme or invalid scale (\\\${x.toFixed(2)}, \\\${y.toFixed(2)}, \\\${z.toFixed(2)}). This may cause rendering issues.\`, { uuid: mesh.uuid, scale: mesh.scale.toArray() });
+                     window.LeapGuard.reportIncident('trusted', 'Data Integrity Check', 'Mesh \\'' + mesh.name + '\\' has an extreme or invalid scale (' + x.toFixed(2) + ', ' + y.toFixed(2) + ', ' + z.toFixed(2) + '). This may cause rendering issues.', { uuid: mesh.uuid, scale: mesh.scale.toArray() });
                 }
             }
         }

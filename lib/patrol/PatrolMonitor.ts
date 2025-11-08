@@ -57,14 +57,20 @@ const patrolMonitor = (() => {
             if (lastPosData) {
                 const distanceMoved = Math.hypot(currentPos.x - lastPosData.pos.x, currentPos.y - lastPosData.pos.y);
                 const timeElapsed = (Date.now() - lastPosData.timestamp) / 1000;
+                
+                // Smarter check: only flag if movement input is active.
+                const isMovementInputActive = Engine.input.isPressed('KeyW') || Engine.input.isPressed('KeyA') ||
+                                              Engine.input.isPressed('KeyS') || Engine.input.isPressed('KeyD') ||
+                                              Engine.input.isPressed('ArrowUp') || Engine.input.isPressed('ArrowLeft') ||
+                                              Engine.input.isPressed('ArrowDown') || Engine.input.isPressed('ArrowRight');
 
-                if (distanceMoved < 1 && timeElapsed > STAGNATION_THRESHOLD) {
-                    // ANOMALY DETECTED: Sprite is stuck
+                if (distanceMoved < 1 && timeElapsed > STAGNATION_THRESHOLD && isMovementInputActive) {
+                    // ANOMALY DETECTED: Sprite is stuck despite user input
                     const report = {
                         anomaly: 'stagnation',
                         targetId: sprite.id,
                         targetName: sprite.name,
-                        details: \`Sprite '\${sprite.name}' has not moved in \${timeElapsed.toFixed(1)}s.\`,
+                        details: 'Sprite \\'' + sprite.name + '\\' has not moved in ' + timeElapsed.toFixed(1) + 's despite active movement input.',
                         action: 'Applying velocity nudge.'
                     };
                     
@@ -73,12 +79,12 @@ const patrolMonitor = (() => {
                     sprite.vy += (Math.random() - 0.5) * 50;
                     
                     Engine.events.emit('patrol-report', report);
-                    window.LeapGuard.reportIncident('trusted', 'PatrolMonitor: Stagnation', report.details, { id: sprite.id });
+                    window.LeapGuard.reportIncident('trusted', 'PatrolMonitor: Input Deadlock', report.details, { id: sprite.id });
                     
                     // Reset its timer after nudging
                     lastPositions.set(sprite.id, { pos: currentPos, timestamp: Date.now() });
-                } else if (distanceMoved >= 1) {
-                    // Update position if it has moved
+                } else if (distanceMoved >= 1 || !isMovementInputActive) {
+                    // Update timestamp if it has moved OR if there's no input (so the timer resets when player is idle)
                      lastPositions.set(sprite.id, { pos: currentPos, timestamp: Date.now() });
                 }
             } else {

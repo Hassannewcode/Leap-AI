@@ -1,3 +1,4 @@
+
 export const sceneManager = `
 const sceneManager = (() => {
     const scenes = {};
@@ -24,7 +25,7 @@ const sceneManager = (() => {
 
     function define(name, config) {
         if (!config || typeof config.onEnter !== 'function') {
-            console.error(\`Scene '\${name}' is invalid. It must be an object with at least an onEnter method.\`);
+            console.error('Scene \\'' + name + '\\' is invalid. It must be an object with at least an onEnter method.');
             return;
         }
         scenes[name] = {
@@ -37,7 +38,7 @@ const sceneManager = (() => {
 
     function load(name, params = {}) {
         if (!scenes[name]) {
-            console.error(\`Scene '\${name}' is not defined.\`);
+            console.error('Scene \\'' + name + '\\' is not defined.');
             return;
         }
 
@@ -47,7 +48,7 @@ const sceneManager = (() => {
             try {
                 activeScene.onExit();
             } catch(e) {
-                console.error(\`Error in onExit for scene '\${activeScene._name}':\`, e);
+                console.error('Error in onExit for scene \\'' + activeScene._name + '\\':', e);
             }
         }
         
@@ -56,13 +57,13 @@ const sceneManager = (() => {
 
         activeScene = scenes[name];
         
-        console.log(\`Loading scene: '\${name}'\`);
+        console.log('Loading scene: \\'' + name + '\\'');
         
         if (typeof activeScene.onEnter === 'function') {
             try {
                 activeScene.onEnter(params);
             } catch(e) {
-                console.error(\`Error in onEnter for scene '\${name}':\`, e);
+                console.error('Error in onEnter for scene \\'' + name + '\\':', e);
             }
         }
     }
@@ -72,7 +73,7 @@ const sceneManager = (() => {
              try {
                 activeScene.onUpdate(deltaTime);
             } catch(e) {
-                console.error(\`Error in onUpdate for scene '\${activeScene._name}':\`, e);
+                console.error('Error in onUpdate for scene \\'' + activeScene._name + '\\':', e);
             }
         }
     }

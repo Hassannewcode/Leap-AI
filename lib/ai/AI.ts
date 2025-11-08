@@ -22,7 +22,7 @@ const inGameAI = (() => {
 
     function generateText(prompt) {
         return new Promise((resolve, reject) => {
-            const requestId = \`ai-req-\${Date.now()}-\${Math.random().toString(16).slice(2)}\`;
+            const requestId = 'ai-req-' + Date.now() + '-' + Math.random().toString(16).slice(2);
             pendingRequests.set(requestId, { resolve, reject });
 
             try {

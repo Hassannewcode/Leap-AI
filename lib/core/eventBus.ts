@@ -29,7 +29,7 @@ const eventBus = (() => {
             try {
                 listener(data);
             } catch (e) {
-                console.error(\`Error in event listener for '\${eventName}':\`, e);
+                console.error('Error in event listener for \\'' + eventName + '\\':', e);
             }
         });
     }

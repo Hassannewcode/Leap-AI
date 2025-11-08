@@ -219,7 +219,16 @@ const App: React.FC = () => {
             const errorMessage = error instanceof Error ? `Error: ${error.message}` : 'An unknown error occurred. The AI may have returned an invalid response.';
             
             let errorChatMessage: ModelChatMessage;
-            if (!isRetry) {
+
+            // Handle failure from the self-correction loop specifically
+            if (errorMessage.includes("AI self-correction loop failed")) {
+                errorChatMessage = {
+                     id: generateId(),
+                     role: 'model',
+                     text: `I tried to generate and validate the code multiple times but couldn't arrive at a stable solution. Please try rephrasing your request. (${errorMessage})`,
+                     fullResponse: JSON.stringify({ error: errorMessage }),
+                 };
+            } else if (!isRetry) {
                 errorChatMessage = {
                     id: generateId(),
                     role: 'model',
@@ -430,39 +439,52 @@ const App: React.FC = () => {
         });
     }, [activeWorkspaceId]);
     
-    const handleUploadLocalAsset = useCallback(async (file: File) => {
+    const handleUploadLocalAssets = useCallback(async (files: File[]) => {
         if (!activeWorkspace) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            if (dataUrl) {
-                const newAsset: LocalAsset = {
-                    id: generateId(),
-                    name: file.name,
-                    dataUrl: dataUrl,
-                    mimeType: file.type,
+        const newAssets: LocalAsset[] = [];
+        const promises = files.map(file => {
+            return new Promise<void>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const dataUrl = event.target?.result as string;
+                    if (dataUrl) {
+                        newAssets.push({
+                            id: generateId(),
+                            name: `uploads/${file.name}`, // Organize under an 'uploads' path
+                            dataUrl: dataUrl,
+                            mimeType: file.type,
+                        });
+                        resolve();
+                    } else {
+                        reject(new Error(`Failed to read file: ${file.name}`));
+                    }
                 };
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(file);
+            });
+        });
 
-                setWorkspaces(prev => {
+        try {
+            await Promise.all(promises);
+            if (newAssets.length > 0) {
+                 setWorkspaces(prev => {
                     const currentWs = prev[activeWorkspace.id];
                     const existingAssets = currentWs.localAssets ?? [];
                     return {
                         ...prev,
                         [activeWorkspace.id]: {
                             ...currentWs,
-                            localAssets: [...existingAssets, newAsset],
+                            localAssets: [...existingAssets, ...newAssets],
                             lastModified: Date.now(),
                         }
                     };
                 });
             }
-        };
-        reader.onerror = (error) => {
-            console.error("Error reading file:", error);
-            alert("Failed to read the asset file.");
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+             console.error("Error reading files:", error);
+            alert("Failed to read one or more asset files.");
+        }
 
     }, [activeWorkspace]);
 
@@ -647,7 +669,7 @@ const App: React.FC = () => {
                 onDeleteWorkspace={() => requestDeleteWorkspace(activeWorkspace.id)}
                 onReturnToLauncher={handleReturnToLauncher}
                 onUpdateFileContent={handleUpdateFileContent}
-                onUploadLocalAsset={handleUploadLocalAsset}
+                onUploadLocalAssets={handleUploadLocalAssets}
                 onCreateLocalAsset={handleCreateLocalAsset}
                 onUndo={handleUndo}
                 onRedo={handleRedo}

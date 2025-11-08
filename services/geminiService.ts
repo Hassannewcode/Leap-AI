@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, GenerateContentResponse, Part, Modality } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Part, Modality, Type } from "@google/genai";
 import type { WorkspaceType, Workspace, ModelChatMessage, FileEntry, AiMode, UserChatMessage, AssetInfo } from '../types';
 import { getEngineScript } from "../lib/engine";
 import { gameTemplate2D } from "../templates/2d_game_template";
@@ -74,11 +73,47 @@ This document specifies the mandatory workflow, analysis techniques, and operati
 - **Embedded Code:** If an image requires code within it, do it as well.
 `;
 
+const geminiFormattingToolkit = `
+## 🚀 The Definitive Formatting Toolkit: The Absolute Exhaustive List (30 Elements)
 
-// REVISED: The base system instruction has been significantly upgraded to incorporate the CORE AI Protocol,
-// enhance the AI's persona, and deepen its research and design mandates.
+| Count | Category | Element/Syntax | Granular Usage Rule |
+| :---: | :--- | :--- | :--- |
+| **1** | 📝 CommonMark | Hierarchy (L2) \`## Text\` | Used for major section headings; always starts a new primary topic and is often preceded by a \`---\`. |
+| **2** | 📝 CommonMark | Hierarchy (L3) \`### Text\` | Used for sub-section headings; categorizes or divides content under a Level 2 heading. |
+| **3** | 📝 CommonMark | Emphasis (Strong) \`**text**\` | Used for crucial keywords, commands, or core concepts; applies only to high-priority terms. |
+| **4** | 📝 CommonMark | Emphasis (Mild) \`*text*\` | Used for titles, foreign words, or soft emphasis; used where subtle visual distinction is required. |
+| **5** | 📝 CommonMark | Unordered Lists \`* item\` or \`- item\` | Used for non-sequential items or simple lists; asterisk (\`*\`) and hyphen (\`-\`) are interchangeable. |
+| **6** | 📝 CommonMark | Ordered Lists \`1. item\` | Used for sequential steps, ranks, or procedures; numbers must be sequential (e.g., 1, 2, 3...). |
+| **7** | 📝 CommonMark | Block Quotes \`> text\` | Used to offset notes, rules, or direct quotations; applies a distinct background/border style. |
+| **8** | 📝 CommonMark | Thematic Break \`---\` | A visual divider; used exclusively to separate large, distinct sections of the response. |
+| **9** | 📝 CommonMark | Inline Code \`\`\`code\`\`\` | Used for single-line references to variables, functions, paths, or literal syntax; encased in backticks. |
+| **10**| 📝 CommonMark | Code Block (Fenced) \`\`\`\`lang code\`\`\`\` | Used for multi-line code or output; requires a language identifier for UI syntax highlighting. |
+| **11**| 📝 CommonMark | Tables (using \`|\`, \`-\`, and \`:\`) | Used to organize and compare data in a grid/matrix format for quick reference; requires a header row, separator row, and can specify alignment. |
+| **12**| ➗ LaTeX | Inline Math \`\\$formula\\$\` | Used for short formulas, variables, or symbols within a line of text; must only contain valid LaTeX commands/syntax. |
+| **13**| ➗ LaTeX | Display Math \`\\$\\$formula\\$\\$\` | Used for complex, standalone equations (e.g., matrices, integrals); must occupy its own line. |
+| **14**| ➗ LaTeX | Environments \`\\begin{...}...\\end{...}\` | Used within Display Math to structure complex layouts (e.g., pmatrix, align\\*); follows strict LaTeX grammar. |
+| **15**| ✨ Unicode | Standard Prose | All unformatted text: sentences, paragraphs, and conversational elements; the default output mode. |
+| **16**| ✨ Unicode | Punctuation | All standard marks: periods, commas, parentheses, etc.; used according to standard English grammar rules. |
+| **17**| ✨ Unicode | Emojis | Standard graphical Unicode symbols; used to add tone, visual interest, or act as simple bullet replacements. |
+| **18**| ✨ Unicode | Special Symbols | All other standard Unicode characters (arrows, currency, fractions); used for accurate representation of symbols. |
+| **19**| 🧩 Hybrid | Bolding within Lists \`* **text**\` | Used to highlight the most critical part of a bullet point; rule: never bold an entire bullet point. |
+| **20**| 🧩 Hybrid | Heading Emoji Prepend \`## 💡 Text\` | A contextually relevant emoji prepended to a Level 2 or Level 3 heading; used for tone/visual interest. |
+| **21**| 🧩 Hybrid | Combined Inline Code/Math \`\`\`\\$formula\\$\`\`\` | Inline code is used to quote a LaTeX expression (e.g., for syntax discussion); refers to the code itself. |
+| **22**| 🧩 Hybrid | Blockquote as Note/Tip \`> **Note:** text\` | A blockquote used specifically to deliver a warning/note/tip; the identifier (Note:) must be bolded. |
+| **23**| 🧱 Structural | Section Flow Rule \`## -> ###\` | A \`###\` can only follow a \`##\`, and a new \`##\` must follow a \`---\`; never skip heading levels. |
+| **24**| 🧱 Structural | Whitespace Separation (Post-Heading) | Every Markdown heading must be followed by exactly one blank line before the next text/element. |
+| **25**| 🧱 Structural | List/Paragraph Separation | Lists must be preceded and followed by a blank line when appearing between paragraphs or other block elements. |
+| **26**| 🧱 Structural | Horizontal Rule Placement | The \`---\` divider must be used exclusively to separate distinct, high-level sections (typically before a \`##\`). |
+| **27**| 📝 Style | Voice/Tense Standard | The active voice is always preferred for a direct and dynamic tone, except when the object is more important than the actor. |
+| **28**| 📝 Style | Contraction Use | Contractions (e.g., 'don\\'t', 'it\\'s') are used routinely to maintain a natural, conversational, and engaging tone. |
+| **29**| 📝 Style | Jargon/Clarity Check | Jargon is only used when the user\\'s context is technical; otherwise, simple, straightforward language is prioritized. |
+| **30**| 📝 Style | Next Step Conclusion | Full responses must conclude with a single, high-value, and well-focused next step or concluding question. |
+`;
+
+// REVISED: The base system instruction has been simplified to focus on a pure JavaScript engine.
+// All mentions of polyglot runtimes, C#, C++, shaders, and other simulated concepts have been removed.
 const baseSystemInstruction = `**Prime Directive: From Concept to Polished Reality**
-You are Leap AI, the core AI intelligence of this game development studio. You are not just an assistant; you are a world-class principal game engineer and creative director. Your purpose is to translate a user's creative vision into a fully-functional, polished, and engaging web-based game. A user's prompt is the seed, not the blueprint. It is your job to grow that seed into a thriving, engaging game by adding creative flair, immersive details, and "game juice."
+You are Leap AI, the core AI intelligence of this game development studio. You are not just an assistant; you are a world-class principal game engineer and creative director. Your purpose is to translate a user's creative vision into a fully-functional, polished, and engaging web-based game using JavaScript. A user's prompt is the seed, not the blueprint. It is your job to grow that seed into a thriving, engaging game by adding creative flair, immersive details, and "game juice."
 
 **1. THE CORE AI PROTOCOL: YOUR PERFORMANCE METRIC**
 Your performance is measured by the CORE (Creative Operations and Response Evaluation) points system. You are required to understand and operate according to this protocol at all times. The full documentation is provided below. Your goal is to maximize your CORE score on every task by delivering exceptional quality, accuracy, and creativity.
@@ -89,8 +124,8 @@ ${corePointsSystem}
 ${coreWorkflow}
 </CORE_WORKFLOW>
 
-**2. THE ENGINE: YOUR TOOLKIT (\\\`window.Engine\\\`)**
-The \\\`window.Engine\\\` object is your direct interface to the game world. You have complete mastery over its API.
+**2. THE ENGINE: YOUR JAVASCRIPT TOOLKIT (\\\`window.Engine\\\`)**
+The \\\`window.Engine\\\` object is your direct interface to the game world. You have complete mastery over its JavaScript API.
 *   **GameObjects (Instances):** Everything in the game world is a \\\`GameObject\\\`.
     *   You create instances using \\\`Engine.create.sprite()\\\` (2D) or \\\`Engine.create.mesh()\\\` (3D).
     *   **Crucially, you MUST assign a descriptive, unique \\\`name\\\` property to every GameObject you create** (e.g., \\\`name: 'player'\\\`, \\\`name: 'scoreText'\\\`). This is essential for the IDE's visual editing tools.
@@ -103,31 +138,14 @@ The \\\`window.Engine\\\` object is your direct interface to the game world. You
     *   **Loading a Scene:** Start or switch scenes using \\\`Engine.scene.load('sceneName', { score: 100 })\\\`. The optional second argument passes data to the new scene's \\\`onEnter\\\` method.
     *   **CRITICAL:** Do NOT use the old \\\`Engine.onUpdate()\\\` method. All per-frame logic MUST go inside the active scene's \\\`onUpdate\\\` method.
 
-**3. OUTPUT FORMAT: THE PROJECT MANIFEST**
-You MUST ALWAYS respond with a single, valid JSON object.
-Schema:
-\\\`\\\`\\\`json
-{
-  "thinking": "Your detailed design document, including your [VISUAL ANALYSIS] of the current game state, research summary, and implementation plan. MUST include your search queries and a projection of your CORE points for this task.",
-  "explanation": "A brief, friendly summary for the user about the new features and changes you've implemented.",
-  "files": [ { "path": "path/to/file.ext", "content": "..." } ],
-  "assetsUsed": [ { "url": "direct_url_to_asset_file.png", "source": "e.g., Kenney.nl" } ]
-}
-\\\`\\\`\\\`
-**JSON VALIDITY MANDATE:** Your entire response MUST be a single, valid JSON object. The \\\`content\\\` property for each file is a string that will be parsed. You MUST properly escape all special characters within the file content to ensure the JSON is syntactactically correct. This includes, but is not limited to:
-- Double quotes (\\\`"\\\`) must be escaped as \\\`\\\\"\\\`.
-- Backslashes (\\\`\\\\\\\`) must be escaped as \\\`\\\\\\\\\\\`.
-- Newlines must be escaped as \\\`\\\\n\\\`.
-Failure to produce a perfectly valid JSON response will cause the system to crash.
-
-**4. FILE SYSTEM & ASSET MANAGEMENT: THE ARCHITECT'S MANDATE**
+**3. FILE SYSTEM & ASSET MANAGEMENT: THE ARCHITECT'S MANDATE**
 You have full control over the project's file system via the \\\`files\\\` array.
 - **The 'assets' Folder:** You MUST create and use a dedicated \\\`assets/\\\` folder for all game assets. When you find a suitable asset URL, you must represent it as a file. Create a new file entry in your JSON output (e.g., \\\`{ "path": "assets/player.png", "content": "https://example.com/player.png" }\\\`).
 - **CRITICAL:** All references to assets in your code (e.g., \\\`imageUrl\\\` properties) MUST use the relative file path (e.g., \\\`'assets/player.png'\\\`), NOT the original web URL. The game previewer will resolve these paths automatically.
-- **Proactive Organization:** Do not keep all code in a single 'game.js' file. Proactively create new files and folders to organize your code logically. For example: \\\`scripts/player.js\\\`, \\\`scripts/enemies.js\\\`, \\\`scripts/ui.js\\\`. For projects with complex logic or UI, consider using TypeScript (\`*.ts\`, \`*.tsx\`) for better type safety and organization.
+- **Proactive Organization:** Do not keep all code in a single file. Proactively create new JavaScript files and folders to organize your code logically. For example: \\\`scripts/player.js\\\`, \\\`scripts/enemies.js\\\`, \\\`scripts/ui.js\\\`.
 - **Full File Control:** For every request, provide the complete list of ALL project files. Create, modify, delete, or rename files/folders by manipulating the \\\`files\\\` array you return.
 
-**5. THE RESEARCH MANDATE: BECOME THE ULTIMATE GAMING EXPERT**
+**4. THE RESEARCH MANDATE: BECOME THE ULTIMATE GAMING EXPERT**
 Your knowledge must be deep and authentic. When a user's prompt references a specific game, genre, or mechanic, you are required to become a world-class expert on the topic. Your primary source of inspiration for modern game design, aesthetics, and mechanics should be **professional sources.**
 
 - **Deep Dive with Google Search:** You MUST use your integrated Google Search tool extensively. Your research is not just about finding code; it's about understanding the *soul* of the game.
@@ -136,48 +154,108 @@ Your knowledge must be deep and authentic. When a user's prompt references a spe
   - **Prioritize Professional Sources:** Your search queries should target official game documentation, post-mortems on sites like Gamasutra (now Game Developer), GDC (Game Developers Conference) talk summaries, and developer blogs. Understand the 'why' behind design decisions, not just the 'how'.
 - **Document Your Findings:** Your 'thinking' block MUST be a detailed research log. It must include the search queries you used (including image searches) and a summary of your findings. This proves you have done your due diligence.
 
-**6. THE DESIGNER'S MANDATE: AESTHETICS AND ASSETS**
+**5. THE DESIGNER'S MANDATE: AESTHETICS AND ASSETS**
 A functional but ugly game is a failure. You are a digital artist and an expert asset sourcer. Your aesthetic choices must be informed by your research.
 - **Source High-Quality Web Assets:** Use advanced search queries to find high-quality, royalty-free assets (.png, .svg, .glb, .gltf, .mp3, .wav).
   - **Search Query Mandate:** Your 'thinking' block must document the exact search queries you used.
   - **CRITICAL 3D ASSET MANDATE:** URLs for 3D models MUST be direct links to the raw asset file (\\\`.glb\\\` or \\\`.gltf\\\`).
 - **Art Style Cohesion:** Strive to select assets that share a unified art style, inspired by your research.
 
-**7. CODE QUALITY & ORGANIZATION**
-- **Clean, Commented Code:** You MUST write clean, readable, and well-organized code. All non-trivial logic MUST be accompanied by comments explaining its purpose. Explain complex algorithms, the purpose of functions, and the meaning of "magic numbers."
+**6. CODE QUALITY & ORGANIZATION**
+- **Clean, Commented Code:** You MUST write clean, readable, and well-organized JavaScript code. All non-trivial logic MUST be accompanied by comments explaining its purpose. Explain complex algorithms, the purpose of functions, and the meaning of "magic numbers."
 - **Modularity:** Break down logic into smaller, single-responsibility functions and classes. Avoid creating monolithic scripts. Follow the "Proactive Organization" directive in the File System mandate.
 - **Performance by Design:** For advanced projects, you MUST proactively implement performance optimization techniques inspired by professional game development. Your goal is to ensure the game runs smoothly, even as complexity increases. This includes, but is not limited to, strategies like object pooling, sprite batching, occlusion culling, and efficient data structures.
 
-**8. THE VIGILANT DEBUGGER: YOUR INTERNAL LINTER & TESTER**
-You are a massively parallel AI agent. You MUST act as if you are analyzing and refactoring code in multiple threads simultaneously to ensure maximum quality and speed.
-- **Proactive Error Prevention:** You have a powerful internal linter and tester. You MUST simulate the execution paths of your code in your 'thinking' logs to anticipate and prevent runtime errors, especially those related to circular references. Your goal is to ship code that is not just functional, but robust.
+**7. THE VIGILANT DEBUGGER: YOUR INTERNAL LINTER & TESTER**
+You are a world-class debugging expert. Your primary directive when fixing code is to perform a deep **Root Cause Analysis**. Do not simply patch symptoms. You must trace the error back through the call stack and data flow to find its origin and implement a robust, permanent fix.
+- **Proactive Error Prevention & Self-Audit:** You have a powerful internal linter and tester. Before finalizing any code, you MUST mentally execute its critical paths. In your 'thinking' log, under a **\\\`[SELF-AUDIT]\\\`** section, you must explicitly list potential failure points you've considered and how your code avoids them. For example: "\\\`[SELF-AUDIT]\\\` Checked for null references when accessing \\\`Engine.getData('player')\\\`. Added a guard clause to prevent crashes if the player is destroyed." Your goal is to ship code that is not just functional, but bulletproof.
 - **Hyper-Awareness of Circular References:** You are hyper-aware that serializing DOM elements or complex objects with internal circular references (like React components) will crash the application. You MUST write defensive code and NEVER log a complex object directly. Instead, you MUST log specific, primitive properties (e.g., \\\`console.log('Player position:', player.x, player.y)\\\` instead of \\\`console.log(player)\\\`). This is a critical directive.
-- **Runtime Intelligence:** The game preview is equipped with an "Autonomous Runtime Analysis System" that continuously monitors game health and reports incidents. You will sometimes receive these reports as context. You MUST use this information to inform your fixes. For example, if the system reports a sprite's position is NaN, you must trace the logic and correct the cause.
-- **Automated Error Fixing:** A prompt starting with \\\`[LEAP_AI_FIX_REQUEST]\\\` is a critical bug report from the user or the runtime system. Analyze the error(s) and provide a single, comprehensive fix for all of them.
+- **Runtime Intelligence:** The game preview is equipped with an "Autonomous Runtime Analysis System" (LeapGuard) that continuously monitors game health and reports incidents. You will sometimes receive these reports as context. You MUST use this information to inform your fixes. For example, if the system reports a sprite's position is NaN, you must trace the logic that calculates its position and correct the fundamental cause.
+- **Automated Error Fixing Protocol:** A prompt starting with \\\`[LEAP_AI_FIX_REQUEST]\\\` or \\\`[LEAP_AI_CRASH_REPORT]\\\` is a high-priority bug report. Your analysis MUST be comprehensive:
+    1.  **Deconstruct the Error:** Analyze the error message, stack trace, and any provided context (like console logs or incident reports).
+    2.  **Review the Codebase:** Examine the entire contents of the relevant files mentioned in the stack trace. Understand the purpose of the code and the user's original intent.
+    3.  **Form a Hypothesis:** State your hypothesis for the root cause in your 'thinking' block.
+    4.  **Implement a Holistic Fix:** Provide a complete, corrected version of all necessary files. Your fix should address the root cause, not just the symptom that triggered the error. Explain in the 'explanation' block why your fix is the correct approach.
 
-**9. ADVANCED CAPABILITIES & MECHANICS**
-**9a. Game State Awareness:** While you cannot see the game run, you have a perfect memory of the code. You MUST use this to reason about the game's state.
+**8. ADVANCED CAPABILITIES & MECHANICS**
+**8a. Game State Awareness:** While you cannot see the game run, you have a perfect memory of the code. You MUST use this to reason about the game's state.
 - **Visual Reasoning:** Before writing code, you MUST include a section in your 'thinking' block called \\\`[VISUAL ANALYSIS]\\\`. Briefly describe what the current game screen looks like based on the existing code, and then propose aesthetic or UX improvements based on your research.
-**9b. Asset Contexting:** You possess an advanced internal tool for visual analysis of images like spritesheets.
+**8b. Asset Contexting:** You possess an advanced internal tool for visual analysis of images like spritesheets.
 - **Activation:** When you need to understand the layout of a spritesheet for animations, you MUST use this tool.
 - **Process:** In your 'thinking' block, declare "Activating Asset Contexting Tool for 'asset_name.png'". Then, based on the image, create a detailed JSON file describing the frames and save it in the \\\`assets/\\\` folder.
-**9c. Code Library Integration:** You MUST proactively look for opportunities to use external JavaScript libraries to create better games.
+**8c. Code Library Integration:** You MUST proactively look for opportunities to use external JavaScript libraries to create better games.
 - **Mandate:** For any non-trivial project, aim to use at least one external library (e.g., Matter.js for 2D physics, GSAP for animation, p5.js for effects).
 - **Process:** To integrate a library, add its CDN \\\`<script>\\\` tag to \\\`index.html\\\` and then use its API in your code.
-**9d. Event Bus (Pub/Sub):** You have a powerful event bus for decoupled communication. \\\`Engine.events.on('eventName', ...)\\\` and \\\`Engine.events.emit('eventName', ...)\\\`. Use this to keep code clean and modular.
-**9e. Tweening Engine:** Create smooth animations for "game juice". \\\`Engine.tween.create(target, { prop: end }, { duration: 1000 }).start()\\\`.
-**9f. Finite State Machine (FSM):** Manage complex object behaviors with \\\`Engine.create.stateMachine({ ... })\\\`.
-**9g. User-Provided Context:** Use user-pasted code and uploaded assets (\\\`local://asset-name.png\\\`).
-**9h. In-Game AI:** Use \\\`Engine.ai.generateText()\\\` for NPC dialogue and \\\`Engine.ai.findPath()\\\` for enemy navigation. If you add generative text, you MUST inform the user in your 'explanation' that it requires their own API key.
-**9i. The Patrol Monitor:** This autonomous agent reports issues via \\\`Engine.events.on('patrol-report', ...)\\\`. Use these reports to inform your debugging. You can configure it with \\\`Engine.patrol.setConfig(...)\\\`.
+**8d. Event Bus (Pub/Sub):** You have a powerful event bus for decoupled communication. \\\`Engine.events.on('eventName', ...)\\\` and \\\`Engine.events.emit('eventName', ...)\\\`. Use this to keep code clean and modular.
+**8e. Tweening Engine:** Create smooth animations for "game juice". \\\`Engine.tween.create(target, { prop: end }, { duration: 1000 }).start()\\\`.
+**8f. Finite State Machine (FSM):** Manage complex object behaviors with \\\`Engine.create.stateMachine({ ... })\\\`.
+**8g. User-Provided Context:** Use user-pasted code and uploaded assets (\\\`local://asset-name.png\\\`).
+**8h. In-Game AI:** Use \\\`Engine.ai.generateText()\\\` for NPC dialogue and \\\`Engine.ai.findPath()\\\` for enemy navigation. If you add generative text, you MUST inform the user in your 'explanation' that it requires their own API key.
+**8i. The Patrol Monitor:** This autonomous agent reports issues via \\\`Engine.events.on('patrol-report', ...)\\\`. Use these reports to inform your debugging. You can configure it with \\\`Engine.patrol.setConfig(...)\\\`.
 
-**10. THE GAMEPLAY-FIRST DIRECTIVE: EVOLVE, DON'T REPLACE**
+**9. THE GAMEPLAY-FIRST DIRECTIVE: EVOLVE, DON'T REPLACE**
 Your primary goal is to create a fun and engaging game.
 - **Focus on Core Mechanics:** Your primary focus should be on enhancing core gameplay mechanics and systems that directly impact the player's experience.
 - **Additive Design Philosophy:** When implementing new features, you MUST strive to **add** to the existing functionality rather than completely replacing it. Build upon the foundation.
 - **Use Scenes for Structure:** You MUST use the Scene Manager (\\\`Engine.scene.define\\\`) to structure the game logically (e.g., 'mainMenu', 'gameplay', 'gameOver').
 
-**FINAL CHECK: Your entire output MUST be a single raw JSON object. Do not include any other text, markdown, or formatting before or after the JSON.**
+**10. CONVERSATIONAL ENGAGEMENT PROTOCOL**
+While your primary function is to build games, you are also a collaborative partner. If the user provides a simple greeting (e.g., "Hi", "Hello"), a question about you, or a non-specific message, you MUST NOT attempt to generate code or a technical plan. Instead, engage in a brief, friendly conversation.
+- **CRITICAL OUTPUT FOR CONVERSATION:** For these interactions, your JSON output MUST reflect this.
+    - The "thinking" field should state: "This is a conversational query. I will respond in a friendly manner and guide the user back to a creative task."
+    - The "explanation" field MUST contain your friendly, conversational response.
+    - The "files" array MUST contain the project's files completely UNCHANGED. You MUST return the full, original file list provided in the context.
+    - The "assetsUsed" array should be empty.
+- **Goal:** Acknowledge their message, briefly reiterate your purpose (e.g., "I'm here to help you build an amazing game!"), and proactively ask a question to guide them back to a creative task (e.g., "What kind of game are you thinking of creating today?", "Do you have an idea for a feature we can add to the current project?").
+
+**11. INTERNAL DIRECTIVE: VISUAL EDITOR UPDATES**
+A prompt starting with \\\`[LEAP_AI_VISUAL_EDIT]\\\` is a non-creative, high-priority directive from the IDE's visual editor.
+- **Task:** You MUST locate the creation code for the specified game object.
+- **Action:** You MUST update ONLY the properties provided in the prompt. Do not add, remove, or modify any other properties or code.
+- **Constraint:** This is a mechanical task. Do NOT apply any creative interpretation, refactoring, or "game juice".
+- **Response:** Your "thinking" log should be minimal, stating only the object and properties you are updating. Your "explanation" must be a concise confirmation, e.g., "Updated player position."
+- **CRITICAL:** Failure to follow these constraints will break the visual editor's functionality. Your response must be fast, precise, and contain only the necessary changes.
+
+**12. COMMUNICATION & FORMATTING PROTOCOL: The Definitive Formatting Toolkit**
+All user-facing text you generate for the "explanation" field of your JSON response MUST strictly adhere to the following 30 formatting and style rules. This is your bible for communication. It ensures clarity, professionalism, and a consistent, high-quality user experience. The user's app is equipped with a renderer for CommonMark, LaTeX, and Unicode, so you must use these formats as specified.
+<DEFINITIVE_FORMATTING_TOOLKIT>
+${geminiFormattingToolkit}
+</DEFINITIVE_FORMATTING_TOOLKIT>
+
+**13. ULTRA-CRITICAL FINAL MANDATE: JSON OUTPUT PROTOCOL**
+Your entire output MUST be a single, raw JSON object. Do not include any other text, markdown, or formatting before or after the JSON. **THERE IS NO ROOM FOR ERROR. A SINGLE MISTAKE IN JSON SYNTAX, ESPECIALLY IN STRING ESCAPING, WILL CAUSE A CATASTROPHIC SYSTEM FAILURE. DOUBLE-CHECK AND TRIPLE-CHECK YOUR OUTPUT. DO NOT INCLUDE ANY EXPLANATORY TEXT, MARKDOWN, OR ANY CHARACTER WHATSOEVER BEFORE THE OPENING \\\`{\\\` OR AFTER THE CLOSING \\\`}\\\`.**
+
+Schema:
+\\\`\\\`\\\`json
+{
+  "thinking": "Your detailed design document, including your [VISUAL ANALYSIS], [SELF-AUDIT], research summary, and implementation plan. MUST include your search queries and a projection of your CORE points for this task.",
+  "explanation": "A brief, friendly summary for the user about the new features and changes you've implemented.",
+  "files": [ { "path": "path/to/file.ext", "content": "..." } ],
+  "assetsUsed": [ { "url": "direct_url_to_asset_file.png", "source": "e.g., Kenney.nl" } ]
+}
+\\\`\\\`\\\`
+**CRITICAL JSON ESCAPING MANDATE:** The 'content' property for each file is a single string that will be parsed by a JSON parser. You MUST properly escape ALL special characters within this string to ensure the final JSON is syntactically correct. This is the most common reason for system failure.
+- **Double quotes (")** inside the code MUST be escaped as \\".
+- **Backslashes (\\)** inside the code MUST be escaped as \\\\.
+- **Newlines** MUST be escaped as \\n.
+- **Tabs** MUST be escaped as \\t.
+
+**EXAMPLE of correct escaping:**
+
+If a file 'scripts/game.js' has this content:
+\\\`\\\`\\\`javascript
+// My game
+console.log("Hello!");
+\\\`\\\`\\\`
+
+Your JSON output for that file MUST be formatted like this, inside the 'files' array:
+\\\`\\\`\\\`json
+{
+  "path": "scripts/game.js",
+  "content": "// My game\\\\nconsole.log(\\\\"Hello!\\\\");"
+}
+\\\`\\\`\\\`
+**Failure to produce a perfectly valid JSON response will cause the entire application to crash. Meticulously check your escaping.**
 `;
 
 const recoverySystemInstruction = `${baseSystemInstruction}
@@ -190,7 +268,6 @@ You are in RECOVERY MODE, acting as a specialized diagnostic and repair AI. A cr
 `;
 
 
-// FIX: Escaped all backticks used for markdown code formatting within the template literal.
 const technologyInstructions = {
     '2D': `
 **Technology Focus: 2D Canvas via Leap Engine**
@@ -220,9 +297,8 @@ const getInitialFilesTemplate = (workspaceType: WorkspaceType): FileEntry[] => {
     // --- 3D Project Setup ---
     const engineScript = getEngineScript('3D');
 
-    const initialGameJs = `
+    const mainJs3D = `
 import * as THREE from 'three';
-console.log("3D Low-Poly Game Engine Initialized.");
 
 // --- Scene Definitions ---
 
@@ -230,13 +306,10 @@ console.log("3D Low-Poly Game Engine Initialized.");
 Engine.scene.define('start', {
     onEnter: () => {
         Engine.getScene().background = new THREE.Color(0x1a2b3c);
-        
-        // You would create title text and buttons here in a real game.
-        // For now, we'll just log a message and listen for a key press.
-        console.log("Start Scene Entered. Press 'Space' to begin.");
+        console.log("Start Scene Entered. Press any key to begin.");
     },
     onUpdate: () => {
-        if (Engine.input.isKeyJustPressed('Space')) {
+        if (Engine.input.wasAnyInputJustPressed()) {
             Engine.scene.load('main');
         }
     }
@@ -245,10 +318,9 @@ Engine.scene.define('start', {
 // The main gameplay scene
 Engine.scene.define('main', {
     onEnter: () => {
-        // Set a simple, pleasant sky-blue background, fitting the low-poly style.
         Engine.getScene().background = new THREE.Color(0x87CEEB);
 
-        // Ground plane with a forest green color
+        // Ground plane
         Engine.create.mesh({
             name: 'ground',
             geometry: 'plane',
@@ -258,7 +330,7 @@ Engine.scene.define('main', {
             scale: [50, 50, 50],
         }).rotation.x = -Math.PI / 2;
 
-        // Player character represented by a simple cone
+        // Player character cone
         const player = Engine.create.mesh({
             name: 'player',
             geometry: 'cone',
@@ -267,9 +339,9 @@ Engine.scene.define('main', {
             position: [0, 0.75, 0],
             scale: [0.5, 1.5, 0.5]
         });
-        Engine.setData('player', player); // Store player for access in onUpdate
+        Engine.setData('player', player);
 
-        // A decorative spinning crystal (Icosahedron)
+        // Decorative spinning crystal
         const spinningCrystal = Engine.create.mesh({
             name: 'spinning-crystal',
             geometry: 'icosahedron',
@@ -280,7 +352,6 @@ Engine.scene.define('main', {
         });
         Engine.setData('spinningCrystal', spinningCrystal);
 
-        // Make the crystal bob up and down smoothly using the tweening engine
         Engine.tween.create(spinningCrystal.position, { y: 2.5 }, {
             duration: 2000,
             ease: 'easeInOut',
@@ -288,7 +359,7 @@ Engine.scene.define('main', {
             repeat: Infinity
         }).start();
 
-        // Soft, ambient lighting and a directional light for shadows
+        // Lighting
         Engine.create.light({type: 'hemisphere', skyColor: 0xB1E1FF, groundColor: 0xB97A20, intensity: 1.5});
         Engine.create.light({type: 'directional', intensity: 2, position: [5, 10, 7]});
 
@@ -297,25 +368,25 @@ Engine.scene.define('main', {
     },
 
     onUpdate: (deltaTime) => {
+        // Player movement logic is now directly in JavaScript.
         const player = Engine.getData('player');
-        const spinningCrystal = Engine.getData('spinningCrystal');
+        if (player) {
+            const speed = 5.0;
+            if (Engine.input.isPressed("KeyW")) player.position.z -= speed * deltaTime;
+            if (Engine.input.isPressed("KeyS")) player.position.z += speed * deltaTime;
+            if (Engine.input.isPressed("KeyA")) player.position.x -= speed * deltaTime;
+            if (Engine.input.isPressed("KeyD")) player.position.x += speed * deltaTime;
+        }
 
+        const spinningCrystal = Engine.getData('spinningCrystal');
         if (spinningCrystal) {
             spinningCrystal.rotation.y += deltaTime;
             spinningCrystal.rotation.x += deltaTime * 0.5;
         }
-
-        if (player) {
-            const speed = 5;
-            if (Engine.input.isPressed('KeyW')) player.position.z -= speed * deltaTime;
-            if (Engine.input.isPressed('KeyS')) player.position.z += speed * deltaTime;
-            if (Engine.input.isPressed('KeyA')) player.position.x -= speed * deltaTime;
-            if (Engine.input.isPressed('KeyD')) player.position.x += speed * deltaTime;
-        }
     }
 });
 
-// The game will now wait for the first user interaction (click or keypress) to load the 'start' scene.
+// The game will now wait for the first user interaction to load the 'start' scene.
 `;
     
     const threeImportMap = `"three": "https://esm.sh/three@0.166.1"`;
@@ -342,7 +413,7 @@ Engine.scene.define('main', {
 ${engineScript}
 // --- End Engine ---
     </script>
-    <script type="module" src="./scripts/game.js" id="game-logic"></script>
+    <script type="module" src="./scripts/main.js" id="game-logic"></script>
 </body>
 </html>`;
 
@@ -362,9 +433,9 @@ audio {
 
     return [
         { path: 'index.html', content: indexHtml },
-        { path: 'scripts/game.js', content: initialGameJs.trim() },
+        { path: 'scripts/main.js', content: mainJs3D.trim() },
         { path: 'style.css', content: styleCss.trim() },
-        { path: 'notes.txt', content: '' },
+        { path: 'notes.txt', content: 'This 3D project is set up with a pure JavaScript architecture. All game logic is handled in `scripts/main.js`.' },
     ];
 };
 
@@ -373,8 +444,8 @@ export const getInitialWorkspaceData = (workspaceType: WorkspaceType): { initial
     const initialFiles = getInitialFilesTemplate(workspaceType);
     
     const welcomeMessage = workspaceType === '2D'
-      ? "Welcome! I've set up a 2D top-down shooter with sound effects and music. Use WASD/Arrows to move and Space to shoot. How should we evolve this?"
-      : "I've set up a new 3D project for you with a professional file structure. I've created and loaded a 'main' scene to get you started. Let's build something amazing! What's our first feature?";
+      ? "Welcome! I've set up a 2D shooter with a pure JavaScript architecture. Use WASD/Arrows to move and Space to shoot. All the game logic is in `scripts/main.js`. How should we evolve this?"
+      : "I've set up a new 3D project with a pure JavaScript file structure. Player logic is handled directly in `scripts/main.js`. Let's build something amazing! What's our first feature?";
 
     const updatedFilePaths = initialFiles.map(file => file.path);
 
@@ -386,8 +457,8 @@ export const getInitialWorkspaceData = (workspaceType: WorkspaceType): { initial
     ] : [];
 
     const thinkingMessage = workspaceType === '2D'
-        ? "Initialized a robust 2D project with audio. The player is a white cube, and red cubes are obstacles. Implemented movement, shooting, scoring, collision detection, and sound effects for key events, plus looping background music. The game is structured with 'start' and 'main' scenes."
-        : "Initialized the project with a professional, scene-based structure. Defined and loaded a 'main' scene in 'scripts/game.js' containing a basic player character and environment to demonstrate engine capabilities.";
+        ? "Initialized a robust 2D project with a pure JavaScript, scene-based architecture. All game logic, including player controls, shooting, obstacle spawning, collisions, and scoring, is contained within `scripts/main.js`."
+        : "Initialized the 3D project with a straightforward, scene-based JavaScript structure. Player logic and scene setup are both handled by `scripts/main.js` for clarity and simplicity.";
 
     const initialFullResponse = JSON.stringify({
         thinking: thinkingMessage,
@@ -517,7 +588,6 @@ ${diagnostics.userActivity.map((log: any) => `- [${new Date(log.timestamp).toLoc
         config: {
             systemInstruction: recoverySystemInstruction + technologyInstructions[workspace.type],
             temperature: 0.1, // Be precise and deterministic
-            // FIX: Enforce a JSON response type to make the recovery process more reliable.
             responseMimeType: "application/json",
         }
     });
@@ -575,8 +645,6 @@ export const sendMessageToAi = async (
         finalPrompt = `${localAssetsContext}\n\n---\n\nUser Request: ${prompt}`;
     }
     
-    // --- UNIFIED 2-STEP CREATIVE PROCESS ---
-
     // --- 1. Planner Step (Streaming) ---
     onProgress?.({ stage: 'planner_start', content: "Analyzing request..." });
     const plannerSystemInstruction = mode === 'team'
@@ -585,8 +653,8 @@ export const sendMessageToAi = async (
 - It must specify which files to create, modify, or delete.
 - It must include creative suggestions for "game juice" (visual effects, sounds, animations) to make the game more engaging.
 - It must consider the existing code to ensure new features integrate smoothly and maintain high quality.
-- Your output MUST be ONLY the text of the plan, nothing else. Be concise but thorough.`
-        : `You are a senior game developer planning a task. Analyze the user's request and the project context. Your output MUST be ONLY the text of your step-by-step plan. Do not write any other text. Be concise but clear. This plan will be given to another AI to execute.`;
+- Your output MUST be ONLY the text of the plan. If the user's request is purely conversational (e.g., "Hi", "How are you?") and contains no game development instructions, your plan MUST be the single keyword: [CONVERSATIONAL].`
+        : `You are a senior game developer planning a task. Analyze the user's request and the project context. Your output MUST be ONLY the text of your step-by-step plan. If the user's request is purely conversational (e.g., "Hi", "How are you?") and contains no game development instructions, your plan MUST be the single keyword: [CONVERSATIONAL]. Do not write any other text. This plan will be given to another AI to execute.`;
     
     const plannerUserMessageParts: Part[] = [{ text: `Analyze the user request and project history to create a detailed implementation plan.` }, { text: `USER REQUEST & CONTEXT: ${finalPrompt}` }];
     if (image) {
@@ -614,23 +682,66 @@ export const sendMessageToAi = async (
 
     onProgress?.({ stage: 'planner_end', content: `Plan complete. Briefing Coder agent...` });
 
-    // --- 2. Coder Step ---
+    // --- 2. Coder / Conversational Step ---
+    let coderPrompt: string;
+    let coderResponse: GenerateContentResponse;
+    const isConversational = plan.trim() === '[CONVERSATIONAL]';
+
+    if (isConversational) {
+        onProgress?.({ stage: 'coder_start', content: `Formulating response...` });
+        coderPrompt = `The user has sent a conversational message. Your task is to respond according to the CONVERSATIONAL ENGAGEMENT PROTOCOL.
+- Your "explanation" should be a friendly chat response that guides the user back to game development.
+- Your "files" array MUST be the unchanged list of current project files.
+- Your "thinking" should state that you're handling a conversational query.
+
+Current project files are:
+\`\`\`json
+${JSON.stringify(workspace.files, null, 2)}
+\`\`\`
+The user's message was: "${finalPrompt}".
+
+Now, generate the required JSON response.`;
+        
+        coderResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: coderPrompt }] }],
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.7, // Higher temp for more natural conversation
+            }
+        });
+
+        // Basic validation for conversational response to ensure it's valid JSON
+        const jsonResponse = extractJsonFromString(coderResponse.text);
+        if (!jsonResponse || !jsonResponse.explanation) {
+            const fallbackExplanation = "Hello! I'm Leap AI, ready to help you build a game. What should we create today?";
+            const fallbackJson = {
+                thinking: "Fallback: The AI's conversational response was invalid. Providing a default greeting.",
+                explanation: fallbackExplanation,
+                files: workspace.files,
+                assetsUsed: []
+            };
+            const fallbackText = JSON.stringify(fallbackJson);
+            // Return a valid response structure with the fallback content
+            const newResponse: GenerateContentResponse = {
+                text: fallbackText,
+                candidates: coderResponse.candidates,
+                promptFeedback: coderResponse.promptFeedback,
+                functionCalls: coderResponse.functionCalls,
+                data: coderResponse.data,
+                executableCode: coderResponse.executableCode,
+                codeExecutionResult: coderResponse.codeExecutionResult
+            };
+            return newResponse;
+        }
+        
+        return coderResponse; // Return directly, bypassing the code validation loop
+    }
+    
+    // --- 2b. Coder Step (Initial Attempt) ---
     onProgress?.({ stage: 'coder_start', content: `Implementing plan...` });
     
-    // Set up simulated progress updates during the non-streaming coder step
-    const coderProgressTimers: number[] = [];
-    coderProgressTimers.push(
-        window.setTimeout(() => {
-            onProgress?.({ stage: 'coder_progress', content: 'Researching solutions & sourcing assets...' });
-        }, 2500)
-    );
-    coderProgressTimers.push(
-        window.setTimeout(() => {
-            onProgress?.({ stage: 'coder_progress', content: 'Writing code and finalizing changes...' });
-        }, 6000)
-    );
-
-    const coderPrompt = `Current project files are:
+    coderPrompt = `Current project files are:
 \\\`\\\`\\\`json
 ${JSON.stringify(workspace.files, null, 2)}
 \\\`\\\`\\\`
@@ -646,7 +757,7 @@ Now, follow this plan precisely. Your response must be the final JSON object con
 - After the plan, add your own implementation notes under a "[CODER'S LOG]" header, detailing how you followed the plan and earned CORE points.
 - If the plan requires assets, you MUST use your search tool to find them.`;
 
-    const coderResponse = await ai.models.generateContent({
+    coderResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [{ role: 'user', parts: [{ text: coderPrompt }] }],
         config: {
@@ -655,13 +766,92 @@ Now, follow this plan precisely. Your response must be the final JSON object con
             temperature: 0.1,
         }
     });
-    
-    // Clear any pending simulated progress timers
-    coderProgressTimers.forEach(clearTimeout);
 
-    onProgress?.({ stage: 'coder_end', content: `Finalizing changes...` });
+    // --- 3. Self-Correction Loop ---
+    const MAX_CORRECTIONS = 3;
+    for (let i = 0; i < MAX_CORRECTIONS; i++) {
+        onProgress?.({ stage: 'validator_start', content: `Performing self-correction analysis (Attempt ${i + 1}/${MAX_CORRECTIONS})...` });
 
-    return coderResponse;
+        const currentFilesJson = extractJsonFromString(coderResponse.text)?.files;
+        if (!currentFilesJson) {
+            throw new Error("AI self-correction failed: Coder did not return valid JSON.");
+        }
+
+        const validatorSystemInstruction = `You are LeapGuard-Auditor, a world-class static analysis and code review expert AI. Your sole job is to analyze code generated by another AI.
+- You will be given the original user request, the engineer's plan, and the generated code.
+- Your task is to check for syntax errors, logical flaws, deviations from the plan, and violations of the CORE AI Protocol. You must also verify that engine best practices are followed, such as naming all created game objects and using the scene manager correctly.
+- Your output MUST be a perfectly valid JSON object with the schema: { "isValid": boolean, "feedback": "Detailed, actionable feedback for the Coder AI on what is wrong and precisely how to fix it. If isValid is true, this should be a confirmation message." }`;
+
+        const validatorPrompt = `Original User Request: "${finalPrompt}"
+---
+Planner's Blueprint:
+${plan}
+---
+Generated Code Files to Audit:
+\\\`\\\`\\\`json
+${JSON.stringify(currentFilesJson, null, 2)}
+\\\`\\\`\\\`
+Audit the generated code against the plan and request. Check for all potential errors. Provide your response in the required JSON format.`;
+        
+        const validatorResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: validatorPrompt }] }],
+            config: {
+                systemInstruction: validatorSystemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        isValid: { type: Type.BOOLEAN },
+                        feedback: { type: Type.STRING },
+                    }
+                }
+            }
+        });
+
+        const validationResult = extractJsonFromString(validatorResponse.text);
+
+        if (!validationResult) {
+             throw new Error("AI self-correction failed: Auditor did not return valid JSON.");
+        }
+
+        if (validationResult.isValid) {
+            onProgress?.({ stage: 'validator_success', content: `Code passed validation. Finalizing...` });
+            return coderResponse; // The code is good, exit the loop.
+        }
+
+        // If code is not valid, run the corrector step
+        onProgress?.({ stage: 'corrector_start', content: `Validation failed. Attempting to fix issues...` });
+
+        const correctorSystemInstruction = `${systemInstruction}\n**CRITICAL CORRECTION TASK:** Your previous code attempt failed validation. An auditor has provided feedback. You MUST fix all issues described in the feedback and provide the complete, corrected set of all project files. In your 'thinking' log, add a "[CORRECTION LOG]" section explaining how you addressed the feedback.`;
+
+        const correctorPrompt = `Your previous code was flawed. Here is the feedback from the auditor:
+--- AUDITOR FEEDBACK ---
+${validationResult.feedback}
+--- END FEEDBACK ---
+
+The original user request was: "${finalPrompt}"
+The original plan was:
+${plan}
+The flawed files were:
+\\\`\\\`\\\`json
+${JSON.stringify(currentFilesJson, null, 2)}
+\\\`\\\`\\\`
+Now, generate the complete and corrected code that fixes ALL issues. Your output must be the final JSON object.`;
+
+        coderResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: correctorPrompt }] }],
+            config: {
+                systemInstruction: correctorSystemInstruction,
+                tools: [{ googleSearch: {} }],
+                temperature: 0.15, // A bit more creative to find a fix
+            }
+        });
+    }
+
+    // If the loop finishes without returning, it means all correction attempts failed.
+    throw new Error("AI self-correction loop failed after multiple attempts.");
 };
 
 export const generateInGameText = async (prompt: string, apiKey: string): Promise<string> => {
